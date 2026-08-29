@@ -72,7 +72,7 @@ function planResponse(body: ChatCompletionRequest): {
     }
     return {
       toolCall: {
-        id: deterministicCallId(`${activateTool}:${adapterId}:${expectedCurrentStateHash}`),
+        id: deterministicCallId(`${activateTool}:${adapterId}:${expectedCurrentStateHash}:${messages.length}`),
         name: activateTool,
         arguments: JSON.stringify({
           adapter_id: adapterId,

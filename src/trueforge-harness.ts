@@ -1,7 +1,7 @@
 import { TrueForge } from '@truefoundry/trueforge-sdk';
 import type { Order } from './domain.js';
 
-export const TRUEFORGE_BASE_URL = process.env.TRUEFORGE_BASE_URL ?? 'http://127.0.0.1:8790';
+export const TRUEFORGE_BASE_URL = process.env.TRUEFORGE_BASE_URL ?? 'http://localhost:8790';
 export const MODEL_BASE_URL = process.env.MODEL_BASE_URL ?? 'http://127.0.0.1:9100/v1';
 export const PROVIDER_NAME = 'forgecanary-local';
 export const MODEL_NAME = 'forgecanary-deterministic';
@@ -23,6 +23,12 @@ interface EventShape {
     function?: { name?: string; arguments?: string };
   }>;
   content?: string;
+}
+
+export interface InventoryJobOptions {
+  modelName?: string;
+  reasoningEffort?: string;
+  onEvent?: (event: unknown, sessionId: string) => void | Promise<void>;
 }
 
 export function makeClient(): TrueForge {
@@ -64,14 +70,20 @@ export function promptForOrder(order: Order): string {
 export async function runInventoryJob(
   client: TrueForge,
   mcpName: string,
-  userMessage: string
+  userMessage: string,
+  options: InventoryJobOptions = {}
 ): Promise<JobTranscript> {
   const { data: session } = await client.sessions.create({
     agent: {
       spec: {
         model: {
-          name: `${PROVIDER_NAME}/${MODEL_NAME}`,
-          params: { temperature: 0, parallelToolCalls: false, maxTokens: 512 }
+          name: options.modelName ?? `${PROVIDER_NAME}/${MODEL_NAME}`,
+          params: {
+            temperature: 0,
+            parallelToolCalls: false,
+            maxTokens: 512,
+            ...(options.reasoningEffort ? { reasoningEffort: options.reasoningEffort } : {})
+          }
         },
         instructions:
           'Execute the requested inventory reservation exactly once using reserve_inventory. Do not add an allocation policy unless the user explicitly supplies one.',
@@ -97,7 +109,10 @@ export async function runInventoryJob(
   const stream = await client.sessions.createTurnStream(session.id, {
     input: [{ type: 'user.message', content: userMessage }]
   });
-  for await (const { data: event } of stream.withMetadata()) streamedEventTypes.push(event.type);
+  for await (const { data: event } of stream.withMetadata()) {
+    streamedEventTypes.push(event.type);
+    await options.onEvent?.(event, session.id);
+  }
 
   return readInventoryJob(client, session.id, streamedEventTypes);
 }
