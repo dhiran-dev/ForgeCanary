@@ -1,5 +1,3 @@
-import type { OracleResult } from './domain.js';
-
 export type CaseStage =
   | 'idle'
   | 'preflight'
@@ -15,19 +13,14 @@ export type CaseStage =
   | 'complete'
   | 'failed';
 
-export type ApprovalStatus = 'not_requested' | 'pending' | 'denied' | 'allowed';
-
-export interface CaseTraceEvent {
-  id: number;
-  caseId: string;
-  source: 'forgecanary' | 'trueforge';
-  type: string;
-  title: string;
-  detail?: string;
-  createdAt: string;
-  trueforgeEventId?: string;
-  sessionId?: string;
-  threadId?: string | null;
+export interface OracleResult {
+  orderId: string;
+  passed: boolean;
+  invariant: string;
+  expectedLotId: string | null;
+  actualLotId: string | null;
+  reservationId: string | null;
+  reason: string;
 }
 
 export interface JobRunEvidence {
@@ -51,57 +44,35 @@ export interface CaseJobRow {
   repairedProtocolEqual?: boolean;
 }
 
-export interface CaseApproval {
-  status: ApprovalStatus;
+export interface CaseTraceEvent {
+  id: number;
+  caseId: string;
+  source: 'forgecanary' | 'trueforge';
+  type: string;
+  title: string;
+  detail?: string;
+  createdAt: string;
   sessionId?: string;
-  threadId?: string;
-  toolCallId?: string;
+  threadId?: string | null;
+}
+
+export interface CaseApproval {
+  status: 'not_requested' | 'pending' | 'denied' | 'allowed';
+  sessionId?: string;
   toolName?: string;
   arguments?: Record<string, unknown>;
+  zeroMutation?: boolean;
+  scopedMutation?: boolean;
   adapterStateHashBefore?: string;
   adapterStateHashAfter?: string;
   candidateStateHashBefore?: string;
   candidateStateHashAfter?: string;
-  zeroMutation?: boolean;
-  scopedMutation?: boolean;
   reviewedEvidenceHash?: string;
   reviewedSchemaHash?: string;
   expectedArgumentsHash?: string;
-  decisionAt?: string;
-}
-
-export interface CaseCapabilities {
-  sandboxCreated: boolean;
-  sandboxId?: string;
-  subagents: Array<{ threadId: string; title: string; status: 'running' | 'done' }>;
-}
-
-export interface CaseReceipt {
-  version: 1;
-  caseId: string;
-  outcome: 'denied_zero_mutation' | 'approved_and_verified';
-  createdAt: string;
-  model: string;
-  trueforgeBaseUrl: string;
-  sessionIds: string[];
-  schema: { v1Hash: string; v2Hash: string; equal: boolean };
-  jobs: Array<{
-    orderId: string;
-    protocolEqual: boolean;
-    repairedProtocolEqual: boolean | null;
-    candidatePassed: boolean;
-    repairedPassed: boolean | null;
-    expectedLotId: string | null;
-    candidateLotId: string | null;
-    repairedLotId: string | null;
-  }>;
-  approval: CaseApproval;
-  approvalHistory: CaseApproval[];
-  receiptHash: string;
 }
 
 export interface ForgeCanaryCase {
-  version: 1;
   id: string;
   stage: CaseStage;
   mode: 'live' | 'test';
@@ -116,8 +87,28 @@ export interface ForgeCanaryCase {
   analysisSessionId?: string;
   approval: CaseApproval;
   approvalHistory: CaseApproval[];
-  capabilities: CaseCapabilities;
+  capabilities: {
+    sandboxCreated: boolean;
+    sandboxId?: string;
+    subagents: Array<{ threadId: string; title: string; status: 'running' | 'done' }>;
+  };
   events: CaseTraceEvent[];
-  receipt?: CaseReceipt;
+  receipt?: { receiptHash: string; outcome: string };
   error?: { message: string; stage: CaseStage; occurredAt: string };
+}
+
+export interface PublicConfig {
+  mode: 'live' | 'test';
+  model: string;
+  trueforgeBaseUrl: string;
+  trueforgeUiUrl: string;
+  connectors: string[];
+  note: string;
+  operatorToken: string;
+}
+
+export interface HealthState {
+  ok: boolean;
+  mode: 'live' | 'test';
+  services: Record<string, { ok: boolean; detail: string }>;
 }

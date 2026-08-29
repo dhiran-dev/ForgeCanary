@@ -30,6 +30,7 @@ import {
 } from './trueforge-harness.js';
 import {
   normalizeTrueForgeEvent,
+  readApprovalRequest,
   readSandboxCreated,
   readThreadCreated,
   readThreadDone,
@@ -46,6 +47,31 @@ interface PendingToolApproval {
   toolCallId: string;
   toolName: string;
   arguments: Record<string, unknown>;
+}
+
+interface ApprovalReference {
+  threadId: string;
+  toolCallIds: string[];
+}
+
+function resolvePendingApproval(
+  calls: Map<string, { name: string; arguments: Record<string, unknown> }>,
+  approvals: ApprovalReference[]
+): PendingToolApproval | null {
+  for (const approval of approvals) {
+    for (const toolCallId of approval.toolCallIds) {
+      const call = calls.get(toolCallId);
+      if (call) {
+        return {
+          threadId: approval.threadId,
+          toolCallId,
+          toolName: call.name,
+          arguments: call.arguments
+        };
+      }
+    }
+  }
+  return null;
 }
 
 const PRODUCT_LABELS: Record<string, string> = {
@@ -107,6 +133,7 @@ export class ForgeCanaryService {
   private readonly client: TrueForge;
   private initializePromise: Promise<string> | null = null;
   private activeTask: Promise<void> | null = null;
+  private decisionTask: Promise<ForgeCanaryCase> | null = null;
 
   constructor(config = readForgeCanaryConfig()) {
     this.config = config;
@@ -188,7 +215,7 @@ export class ForgeCanaryService {
       throw new Error('A fresh approval can only be requested after a verified denial');
     }
     this.store.update(caseId, value => {
-      value.approval = { status: 'not_requested', sessionId: current.approval.sessionId };
+      value.approval = { status: 'not_requested' };
       delete value.receipt;
     });
     this.store.transition(caseId, 'proposing_repair', 'Requesting the same scoped repair again.');
@@ -196,13 +223,32 @@ export class ForgeCanaryService {
       source: 'forgecanary',
       type: 'approval.retry_requested',
       title: 'Fresh approval requested',
-      detail: 'The denied tool call remains denied. TrueForge is creating a new proposal in the same session.'
+      detail: 'The denied tool call remains denied. TrueForge is creating a new proposal in a fresh session.'
     });
-    await this.requestApproval(caseId, current.approval.sessionId);
-    return this.store.require(caseId);
+    try {
+      await this.requestApproval(caseId);
+      return this.store.require(caseId);
+    } catch (error) {
+      this.store.fail(caseId, error);
+      throw error;
+    }
   }
 
   async decideApproval(caseId: string, decision: 'allow' | 'deny'): Promise<ForgeCanaryCase> {
+    if (this.decisionTask) throw new Error('An approval decision is already being processed');
+    const task = this.performApprovalDecision(caseId, decision);
+    this.decisionTask = task;
+    try {
+      return await task;
+    } finally {
+      if (this.decisionTask === task) this.decisionTask = null;
+    }
+  }
+
+  private async performApprovalDecision(
+    caseId: string,
+    decision: 'allow' | 'deny'
+  ): Promise<ForgeCanaryCase> {
     const current = this.store.require(caseId);
     const pending = current.approval;
     if (
@@ -219,33 +265,61 @@ export class ForgeCanaryService {
       this.store.transition(caseId, 'applying_repair', 'TrueForge is applying the approved, scoped compatibility repair.');
     }
 
-    const stream = await this.client.sessions.createTurnStream(pending.sessionId, {
-      input: [
-        {
-          type: 'user.tool_approval',
-          threadId: pending.threadId,
-          toolCallId: pending.toolCallId,
-          approval:
-            decision === 'allow'
-              ? { status: 'allow' }
-              : {
-                  status: 'deny',
-                  reason: 'Operator denied the production-facing adapter activation to verify zero mutation.'
-                }
-        }
-      ]
-    });
-    for await (const { data: event } of stream.withMetadata()) {
-      this.recordTrueForgeEvent(caseId, pending.sessionId, event);
-    }
+    try {
+      const stream = await this.client.sessions.createTurnStream(pending.sessionId, {
+        input: [
+          {
+            type: 'user.tool_approval',
+            threadId: pending.threadId,
+            toolCallId: pending.toolCallId,
+            approval:
+              decision === 'allow'
+                ? { status: 'allow' }
+                : {
+                    status: 'deny',
+                    reason: 'Operator denied the production-facing adapter activation to verify zero mutation.'
+                  }
+          }
+        ]
+      });
+      for await (const { data: event } of stream.withMetadata()) {
+        this.recordTrueForgeEvent(caseId, pending.sessionId, event);
+      }
 
-    if (decision === 'deny') {
-      await this.verifyDenial(caseId);
+      if (decision === 'deny') {
+        await this.verifyDenial(caseId);
+        return this.store.require(caseId);
+      }
+
+      await this.verifyApprovalAndRepair(caseId);
       return this.store.require(caseId);
+    } catch (error) {
+      let workflowError: unknown = error;
+      const latest = this.store.require(caseId);
+      if (decision === 'allow' && latest.stage === 'applying_repair') {
+        try {
+          const adapterAfter = await snapshot<AdapterState>(this.config.controlBaseUrl);
+          const candidateAfter = await snapshot<unknown>(this.config.v2BaseUrl);
+          if (this.isReviewedMutation(latest, adapterAfter, candidateAfter)) {
+            this.store.append(caseId, {
+              source: 'forgecanary',
+              type: 'approval.stream_reconciled',
+              title: 'Approved write reconciled from external state',
+              detail: 'The TrueForge stream ended unexpectedly after the exact reviewed mutation completed.'
+            });
+            await this.verifyApprovalAndRepair(caseId);
+            return this.store.require(caseId);
+          }
+        } catch (reconciliationError) {
+          workflowError = new AggregateError(
+            [error, reconciliationError],
+            'Approval failed and external-state reconciliation also failed'
+          );
+        }
+      }
+      if (this.store.require(caseId).stage !== 'failed') this.store.fail(caseId, workflowError);
+      throw workflowError;
     }
-
-    await this.verifyApprovalAndRepair(caseId);
-    return this.store.require(caseId);
   }
 
   private async initializeRuntime(): Promise<string> {
@@ -466,7 +540,7 @@ export class ForgeCanaryService {
     }
   }
 
-  private async requestApproval(caseId: string, existingSessionId?: string): Promise<void> {
+  private async requestApproval(caseId: string): Promise<void> {
     const current = this.store.require(caseId);
     const adapterBefore = await snapshot<AdapterState>(this.config.controlBaseUrl);
     const candidateBefore = await snapshot<unknown>(this.config.v2BaseUrl);
@@ -478,9 +552,17 @@ export class ForgeCanaryService {
         oracle: row.candidate?.oracle
       }))
     });
-    let sessionId = existingSessionId;
-    if (!sessionId) {
-      const { data: session } = await this.client.sessions.create({
+    const schemaHash = current.schema?.v2Hash;
+    if (!schemaHash) throw new Error('Cannot request approval without the reviewed candidate schema hash');
+    const expectedArguments = {
+      adapter_id: 'explicit-fefo-v1',
+      scope: 'reserve_inventory:perishable-default',
+      candidate_schema_hash: schemaHash,
+      evidence_receipt_hash: evidenceHash,
+      expected_current_state_hash: adapterBefore.stateHash
+    };
+    const expectedArgumentsHash = sha256(expectedArguments);
+    const { data: session } = await this.client.sessions.create({
         agent: {
           spec: {
             model: {
@@ -493,7 +575,7 @@ export class ForgeCanaryService {
               }
             },
             instructions:
-              'Request the activate_compatibility_adapter tool exactly once using every supplied field. This production-facing operation must remain under TrueForge human approval. Never claim activation before a tool response.',
+              'For this request, call activate_compatibility_adapter exactly once using every supplied field. This production-facing operation must remain under TrueForge human approval. Never claim activation before a tool response.',
             mcpServers: [
               {
                 name: FORGECANARY_MCP_NAMES.control,
@@ -511,42 +593,46 @@ export class ForgeCanaryService {
           }
         }
       });
-      sessionId = session.id;
-      this.registerSession(caseId, sessionId);
-    }
+    const sessionId = session.id;
+    this.registerSession(caseId, sessionId);
     const prompt = [
-      existingSessionId
-        ? 'The operator requests a fresh proposal after the previous call was denied. Request the tool again; do not reuse the denied call.'
-        : 'Request activation of the reviewed compatibility adapter.',
-      'ADAPTER=explicit-fefo-v1',
-      'SCOPE=reserve_inventory:perishable-default',
-      `SCHEMA_HASH=${current.schema?.v2Hash ?? ''}`,
-      `EVIDENCE_HASH=${evidenceHash}`,
-      `EXPECTED_STATE_HASH=${adapterBefore.stateHash}`
+      'Request activation of the reviewed compatibility adapter.',
+      'Use exactly these arguments without changing, omitting, or adding any field:',
+      JSON.stringify(expectedArguments)
     ].join(' ');
     const calls = new Map<string, { name: string; arguments: Record<string, unknown> }>();
-    let pending: PendingToolApproval | null = null;
+    const approvals: ApprovalReference[] = [];
     const stream = await this.client.sessions.createTurnStream(sessionId, {
       input: [{ type: 'user.message', content: prompt }]
     });
     for await (const { data: event } of stream.withMetadata()) {
       this.recordTrueForgeEvent(caseId, sessionId, event);
       for (const call of readToolCalls(event)) calls.set(call.id, { name: call.name, arguments: call.arguments });
-      if (event.type === 'tool.approval_required') {
-        const reference = event.toolCalls[0];
-        const call = reference ? calls.get(reference.id) : undefined;
-        if (reference && call) {
-          pending = {
-            threadId: event.threadId,
-            toolCallId: reference.id,
-            toolName: call.name,
-            arguments: call.arguments
-          };
-        }
+      const approval = readApprovalRequest(event);
+      if (approval) approvals.push(approval);
+    }
+    let pending = resolvePendingApproval(calls, approvals);
+    if (!pending) {
+      const persistedEvents: unknown[] = [];
+      for await (const item of await this.client.sessions.listEvents(sessionId, { limit: 100 })) {
+        persistedEvents.push(item.event);
+        this.recordTrueForgeEvent(caseId, sessionId, item.event);
       }
+      for (const event of persistedEvents) {
+        for (const call of readToolCalls(event)) calls.set(call.id, { name: call.name, arguments: call.arguments });
+        const approval = readApprovalRequest(event);
+        if (approval) approvals.push(approval);
+      }
+      pending = resolvePendingApproval(calls, approvals);
     }
     if (!pending) throw new Error(`TrueForge session ${sessionId} did not pause for adapter approval`);
     const approval = pending as PendingToolApproval;
+    if (
+      approval.toolName !== 'activate_compatibility_adapter' ||
+      sha256(approval.arguments) !== expectedArgumentsHash
+    ) {
+      throw new Error('TrueForge proposed an approval that does not exactly match the reviewed evidence');
+    }
     this.store.update(caseId, value => {
       value.approval = {
         status: 'pending',
@@ -556,7 +642,10 @@ export class ForgeCanaryService {
         toolName: approval.toolName,
         arguments: approval.arguments,
         adapterStateHashBefore: adapterBefore.stateHash,
-        candidateStateHashBefore: candidateBefore.stateHash
+        candidateStateHashBefore: candidateBefore.stateHash,
+        reviewedEvidenceHash: evidenceHash,
+        reviewedSchemaHash: schemaHash,
+        expectedArgumentsHash
       };
     });
     this.store.transition(caseId, 'awaiting_approval', 'TrueForge paused before changing the compatibility adapter.');
@@ -597,12 +686,7 @@ export class ForgeCanaryService {
     const current = this.store.require(caseId);
     const adapterAfter = await snapshot<AdapterState>(this.config.controlBaseUrl);
     const candidateAfter = await snapshot<unknown>(this.config.v2BaseUrl);
-    const scopedMutation =
-      adapterAfter.stateHash !== current.approval.adapterStateHashBefore &&
-      adapterAfter.state.active &&
-      adapterAfter.state.adapterId === 'explicit-fefo-v1' &&
-      adapterAfter.state.scope === 'reserve_inventory:perishable-default' &&
-      candidateAfter.stateHash === current.approval.candidateStateHashBefore;
+    const scopedMutation = this.isReviewedMutation(current, adapterAfter, candidateAfter);
     if (!scopedMutation) throw new Error('Approved activation did not produce exactly the scoped adapter mutation');
     const decided: CaseApproval = {
       ...current.approval,
@@ -628,11 +712,16 @@ export class ForgeCanaryService {
       );
       this.store.update(caseId, value => {
         const row = value.jobs.find(item => item.orderId === order.id);
-        if (row) row.repaired = repaired;
+        if (!row) return;
+        row.repaired = repaired;
+        row.repairedProtocolEqual =
+          row.baseline !== undefined &&
+          sha256(row.baseline.toolArguments) === sha256(repaired.toolArguments) &&
+          sha256(row.baseline.toolResponse) === sha256(repaired.toolResponse);
       });
     }
     const repairedCase = this.store.require(caseId);
-    const allGreen = repairedCase.jobs.every(row => row.repaired?.oracle.passed && row.protocolEqual);
+    const allGreen = repairedCase.jobs.every(row => row.repaired?.oracle.passed && row.repairedProtocolEqual);
     if (!allGreen) throw new Error('The approved repair did not make every replayed business outcome green');
     this.store.transition(caseId, 'complete', 'Approved repair verified. All replayed outcomes are now correct.');
     this.store.append(caseId, {
@@ -642,6 +731,23 @@ export class ForgeCanaryService {
       detail: `${repairedCase.jobs.length} of ${repairedCase.jobs.length} external-state checks passed.`
     });
     this.buildReceipt(caseId, 'approved_and_verified');
+  }
+
+  private isReviewedMutation(
+    current: ForgeCanaryCase,
+    adapterAfter: StateSnapshot<AdapterState>,
+    candidateAfter: StateSnapshot<unknown>
+  ): boolean {
+    return (
+      adapterAfter.stateHash !== current.approval.adapterStateHashBefore &&
+      adapterAfter.state.active &&
+      adapterAfter.state.adapterId === 'explicit-fefo-v1' &&
+      adapterAfter.state.scope === 'reserve_inventory:perishable-default' &&
+      adapterAfter.state.candidateSchemaHash === current.approval.reviewedSchemaHash &&
+      adapterAfter.state.approvedEvidenceHash === current.approval.reviewedEvidenceHash &&
+      current.approval.expectedArgumentsHash === sha256(current.approval.arguments ?? {}) &&
+      candidateAfter.stateHash === current.approval.candidateStateHashBefore
+    );
   }
 
   private buildReceipt(caseId: string, outcome: CaseReceipt['outcome']): void {
@@ -659,6 +765,7 @@ export class ForgeCanaryService {
       jobs: current.jobs.map(row => ({
         orderId: row.orderId,
         protocolEqual: row.protocolEqual ?? false,
+        repairedProtocolEqual: row.repaired ? (row.repairedProtocolEqual ?? false) : null,
         candidatePassed: row.candidate?.oracle.passed ?? false,
         repairedPassed: row.repaired?.oracle.passed ?? null,
         expectedLotId: row.candidate?.oracle.expectedLotId ?? null,
@@ -683,7 +790,12 @@ export class ForgeCanaryService {
   private recordTrueForgeEvent(caseId: string, sessionId: string, event: unknown): void {
     this.registerSession(caseId, sessionId);
     const trace = normalizeTrueForgeEvent(event, sessionId);
-    if (trace) this.store.append(caseId, trace);
+    if (trace) {
+      const duplicate =
+        trace.trueforgeEventId !== undefined &&
+        this.store.require(caseId).events.some(item => item.trueforgeEventId === trace.trueforgeEventId);
+      if (!duplicate) this.store.append(caseId, trace);
+    }
     const sandboxId = readSandboxCreated(event);
     if (sandboxId) {
       this.store.update(caseId, value => {

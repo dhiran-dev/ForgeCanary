@@ -66,6 +66,7 @@ function buildMcpServer(): McpServer {
         active: true,
         adapterId: input.adapter_id,
         scope: input.scope,
+        candidateSchemaHash: input.candidate_schema_hash,
         approvedEvidenceHash: input.evidence_receipt_hash,
         activatedAt: new Date().toISOString()
       };

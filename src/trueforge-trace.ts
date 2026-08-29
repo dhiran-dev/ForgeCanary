@@ -10,6 +10,7 @@ interface EventRecord {
   mcpServers?: Array<{ name?: string; status?: string }>;
   toolCalls?: Array<{
     id?: string;
+    sourceEventId?: string;
     function?: { name?: string; arguments?: string };
     toolInfo?: { mcpServerName?: string; name?: string; type?: string };
   }>;
@@ -100,6 +101,13 @@ export function readToolCalls(event: unknown): Array<{
     }
     return [{ id, name, arguments: args }];
   });
+}
+
+export function readApprovalRequest(event: unknown): { threadId: string; toolCallIds: string[] } | null {
+  const value = event as EventRecord;
+  if (value.type !== 'tool.approval_required' || typeof value.threadId !== 'string') return null;
+  const toolCallIds = (value.toolCalls ?? []).flatMap(call => (typeof call.id === 'string' ? [call.id] : []));
+  return toolCallIds.length > 0 ? { threadId: value.threadId, toolCallIds } : null;
 }
 
 export function readThreadCreated(event: unknown): { threadId: string; title: string } | null {

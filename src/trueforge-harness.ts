@@ -86,7 +86,7 @@ export async function runInventoryJob(
           }
         },
         instructions:
-          'Execute the requested inventory reservation exactly once using reserve_inventory. Do not add an allocation policy unless the user explicitly supplies one.',
+          'Execute the requested inventory reservation exactly once using reserve_inventory. Use only the required order_id, sku, and quantity arguments from the request; never invent additional arguments.',
         mcpServers: [
           {
             name: mcpName,

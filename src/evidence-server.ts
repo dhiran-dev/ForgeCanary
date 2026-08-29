@@ -1,25 +1,32 @@
 import { createServer, type ServerResponse } from 'node:http';
-import { readFileSync } from 'node:fs';
-import { extname, resolve } from 'node:path';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { extname, relative, resolve, sep } from 'node:path';
 import { readIntegerArg } from './args.js';
 import { isCaseConflict } from './case-store.js';
 import type { CaseTraceEvent } from './case-types.js';
 import { ForgeCanaryService } from './forgecanary-service.js';
 import { readJsonBody, sendJson } from './http.js';
+import {
+  createOperatorToken,
+  OPERATOR_TOKEN_HEADER,
+  validateOperatorMutation
+} from './operator-security.js';
 
 const port = readIntegerArg('port', 9300);
-const root = resolve('.');
+const staticRoot = resolve('dist/ui');
 const service = new ForgeCanaryService();
-const publicFiles = new Map([
-  ['/', 'web/index.html'],
-  ['/index.html', 'web/index.html'],
-  ['/styles.css', 'web/styles.css'],
-  ['/app.js', 'web/app.js']
-]);
+const operatorToken = createOperatorToken();
+const activeSseConnections = new Map<ServerResponse, () => void>();
 const contentTypes: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8'
+  '.js': 'text/javascript; charset=utf-8',
+  '.map': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2'
 };
 
 function sendApiError(response: ServerResponse, error: unknown): void {
@@ -41,13 +48,19 @@ function sendSse(response: ServerResponse, event: CaseTraceEvent): void {
 }
 
 function serveStatic(pathname: string, response: ServerResponse): boolean {
-  const relativePath = publicFiles.get(pathname);
-  if (!relativePath) return false;
-  const body = readFileSync(resolve(root, relativePath));
+  const requested = pathname === '/' ? 'index.html' : decodeURIComponent(pathname).replace(/^\/+/, '');
+  const candidate = resolve(staticRoot, requested);
+  const candidateRelative = relative(staticRoot, candidate);
+  if (candidateRelative.startsWith('..') || candidateRelative.includes(`..${sep}`)) return false;
+  const filePath = existsSync(candidate) && statSync(candidate).isFile() ? candidate : resolve(staticRoot, 'index.html');
+  if (!existsSync(filePath)) return false;
+  const body = readFileSync(filePath);
   response.writeHead(200, {
-    'content-type': contentTypes[extname(relativePath)] ?? 'application/octet-stream',
+    'content-type': contentTypes[extname(filePath)] ?? 'application/octet-stream',
     'content-length': body.length,
-    'cache-control': 'no-store'
+    'cache-control': filePath.endsWith('index.html') ? 'no-store' : 'public, max-age=31536000, immutable',
+    'x-content-type-options': 'nosniff',
+    'referrer-policy': 'no-referrer'
   });
   response.end(body);
   return true;
@@ -57,6 +70,23 @@ const server = createServer(async (request, response) => {
   try {
     const url = new URL(request.url ?? '/', `http://${request.headers.host ?? `127.0.0.1:${port}`}`);
     const method = request.method ?? 'GET';
+
+    if (method === 'POST') {
+      const rawToken = request.headers[OPERATOR_TOKEN_HEADER];
+      const rejection = validateOperatorMutation(
+        {
+          contentType: request.headers['content-type'],
+          origin: request.headers.origin,
+          expectedOrigin: `http://${request.headers.host ?? `127.0.0.1:${port}`}`,
+          operatorToken: Array.isArray(rawToken) ? rawToken[0] : rawToken
+        },
+        operatorToken
+      );
+      if (rejection) {
+        sendJson(response, rejection.status, { error: rejection.error });
+        return;
+      }
+    }
 
     if (url.pathname === '/health' && method === 'GET') {
       sendJson(response, 200, { status: 'ok' });
@@ -68,7 +98,7 @@ const server = createServer(async (request, response) => {
       return;
     }
     if (url.pathname === '/api/config' && method === 'GET') {
-      sendJson(response, 200, await service.publicConfig());
+      sendJson(response, 200, { ...(await service.publicConfig()), operatorToken });
       return;
     }
     if (url.pathname === '/api/cases/current' && method === 'GET') {
@@ -108,10 +138,18 @@ const server = createServer(async (request, response) => {
       }
       const unsubscribe = service.store.subscribe(caseId, event => sendSse(response, event));
       const heartbeat = setInterval(() => response.write(': keepalive\n\n'), 15_000);
-      request.on('close', () => {
+      let closed = false;
+      const close = () => {
+        if (closed) return;
+        closed = true;
         clearInterval(heartbeat);
         unsubscribe();
-      });
+        activeSseConnections.delete(response);
+        if (!response.writableEnded) response.end();
+      };
+      activeSseConnections.set(response, close);
+      request.on('close', close);
+      response.on('error', close);
       return;
     }
 
@@ -153,6 +191,10 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    if (url.pathname.startsWith('/api/')) {
+      sendJson(response, 404, { error: 'not_found' });
+      return;
+    }
     if (method === 'GET' && serveStatic(url.pathname, response)) return;
     sendJson(response, 404, { error: 'not_found' });
   } catch (error) {
@@ -164,6 +206,19 @@ server.listen(port, '127.0.0.1', () => {
   console.log(`ForgeCanary operator console listening at http://127.0.0.1:${port}`);
 });
 
+let shuttingDown = false;
+function shutdown(): void {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  for (const close of activeSseConnections.values()) close();
+  const forcedExit = setTimeout(() => process.exit(1), 3_000);
+  forcedExit.unref();
+  server.close(() => {
+    clearTimeout(forcedExit);
+    process.exit(0);
+  });
+}
+
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-  process.on(signal, () => server.close(() => process.exit(0)));
+  process.on(signal, shutdown);
 }

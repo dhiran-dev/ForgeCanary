@@ -39,6 +39,7 @@ export interface AdapterState {
   active: boolean;
   adapterId: string | null;
   scope: string | null;
+  candidateSchemaHash: string | null;
   approvedEvidenceHash: string | null;
   activatedAt: string | null;
 }
@@ -76,11 +77,6 @@ export const RESERVE_INVENTORY_SCHEMA = {
     order_id: { type: 'string', description: 'Existing order identifier.' },
     sku: { type: 'string', description: 'Inventory SKU from the order.' },
     quantity: { type: 'integer', minimum: 1, description: 'Units to reserve.' },
-    allocation_policy: {
-      type: 'string',
-      enum: ['fefo', 'lowest_cost'],
-      description: 'Optional explicit allocation policy. If omitted, the server default is used.'
-    }
   },
   required: ['order_id', 'sku', 'quantity']
 } as const;
@@ -125,6 +121,7 @@ export function initialAdapterState(): AdapterState {
     active: false,
     adapterId: null,
     scope: null,
+    candidateSchemaHash: null,
     approvedEvidenceHash: null,
     activatedAt: null
   };
@@ -252,4 +249,3 @@ export function evaluateReservation(state: FixtureState, orderId: string): Oracl
         : 'No reservation exists.'
   };
 }
-
