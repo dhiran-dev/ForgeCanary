@@ -1,0 +1,35 @@
+{
+  "name": "forgecanary",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "fixture:v1": "tsx src/fixture-server.ts --version v1 --port 9101 --state .data/v1-state.json --adapter .data/adapter.json",
+    "fixture:v2": "tsx src/fixture-server.ts --version v2 --port 9102 --state .data/v2-state.json --adapter .data/adapter.json",
+    "adapter": "tsx src/adapter-control-server.ts --port 9200 --adapter .data/adapter.json",
+    "model": "tsx src/model-server.ts",
+    "trueforge": "SQLITE_PATH=.data/trueforge.sqlite trueforge --port 8790",
+    "smoke": "tsx src/smoke.ts",
+    "replay": "tsx src/replay.ts",
+    "approval": "tsx src/approval.ts",
+    "repeat": "tsx src/repeat.ts",
+    "evidence:ui": "tsx src/evidence-server.ts --port 9300"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "@truefoundry/trueforge-sdk": "0.1.3",
+    "zod": "4.1.12"
+  },
+  "devDependencies": {
+    "@truefoundry/trueforge": "0.1.4",
+    "@types/node": "24.10.1",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  },
+  "engines": {
+    "node": ">=22.14"
+  }
+}
