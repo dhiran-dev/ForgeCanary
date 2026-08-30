@@ -91,6 +91,8 @@ describe('runway story image plates', () => {
     expect(app).toContain('className="studio-topbar"');
     expect(app).toContain('<span>Return to empty</span>');
     expect(app).toContain('!currentCase ? <EmptyWorkbench');
+    expect(app).toContain('refreshGeneration.current');
+    expect(app).toContain("config?.reasoningEffort ?? 'low'");
     expect(server).toContain("url.pathname === '/api/demo/empty'");
     expect(server).toContain('service.store.getVisible()');
   });

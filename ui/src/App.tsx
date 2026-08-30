@@ -122,7 +122,7 @@ function EmptyWorkbench({ config, busy, servicesReady, onStart }: { config: Publ
   return <section className="studio-empty-state" aria-labelledby="empty-state-title">
     <article className="machine-node saved-agent-machine empty-saved-agent" aria-label="Reusable saved agent configuration">
       <MachineChassis ports={['right']}/>
-      <div className="machine-copy saved-agent-copy"><div className="module-label"><Icon name="agent"/> SAVED AGENT</div><div className="agent-core"><span className="agent-glyph"><Icon name="agent"/></span><div><h2>{config?.savedAgentName ?? 'ForgeCanary Replay Worker'}</h2><p>Reusable configuration</p></div></div><dl className="module-spec"><div><dt>MODEL</dt><dd>{short(config?.model, 20)}</dd></div><div><dt>REASONING</dt><dd>low</dd></div><div><dt>CONNECTORS</dt><dd>{config?.connectors.length ?? 3} armed</dd></div><div><dt>APPROVAL</dt><dd>writes pause</dd></div></dl><div className="persistent-tag"><StatusDot status="verified"/> Preserved between runs</div></div>
+      <div className="machine-copy saved-agent-copy"><div className="module-label"><Icon name="agent"/> SAVED AGENT</div><div className="agent-core"><span className="agent-glyph"><Icon name="agent"/></span><div><h2>{config?.savedAgentName ?? 'ForgeCanary Replay Worker'}</h2><p>Reusable configuration</p></div></div><dl className="module-spec"><div><dt>MODEL</dt><dd>{short(config?.model, 20)}</dd></div><div><dt>REASONING</dt><dd>{config?.reasoningEffort ?? 'low'}</dd></div><div><dt>CONNECTORS</dt><dd>{config?.connectors.length ?? 3} armed</dd></div><div><dt>APPROVAL</dt><dd>writes pause</dd></div></dl><div className="persistent-tag"><StatusDot status="verified"/> Preserved between runs</div></div>
     </article>
     <div className="empty-state-link" aria-hidden="true"><span/><i>READY</i><span/></div>
     <article className="empty-release-card">
@@ -144,15 +144,20 @@ export default function App() {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [busy, setBusy] = useState(false); const [initializing, setInitializing] = useState(true); const [error, setError] = useState<string | null>(null);
   const refreshTimer = useRef<number | null>(null);
+  const refreshGeneration = useRef(0);
   const workbenchRef = useRef<HTMLElement | null>(null);
   const savedAgentRef = useRef<HTMLElement | null>(null);
   const parentControllerRef = useRef<HTMLElement | null>(null);
   const workerRefs = useRef(new Map<string, HTMLButtonElement>());
   const [machineGeometry, setMachineGeometry] = useState<MachineGeometry>({ width: 1540, height: 600, workers: {} });
-  const refreshCase = useCallback(async (caseId?: string) => { const next = caseId ? await loadCase(caseId) : await loadCurrentCase(); setCurrentCase(next); return next; }, []);
+  const refreshCase = useCallback(async (caseId?: string, generation = refreshGeneration.current) => {
+    const next = caseId ? await loadCase(caseId) : await loadCurrentCase();
+    if (generation === refreshGeneration.current) setCurrentCase(next);
+    return next;
+  }, []);
 
   useEffect(() => { Promise.allSettled([loadConfig(), loadHealth(), loadCurrentCase()]).then(([a, b, c]) => { if (a.status === 'fulfilled') setConfig(a.value); else setError(a.reason instanceof Error ? a.reason.message : String(a.reason)); if (b.status === 'fulfilled') setHealth(b.value); if (c.status === 'fulfilled') setCurrentCase(c.value); setInitializing(false); }); }, []);
-  useEffect(() => { if (!currentCase || !ACTIVE_STAGES.has(currentCase.stage)) return; const caseId = currentCase.id; const source = new EventSource(`/api/cases/${encodeURIComponent(caseId)}/events?after=${currentCase.sequence}`); const schedule = () => { if (refreshTimer.current) window.clearTimeout(refreshTimer.current); refreshTimer.current = window.setTimeout(() => void refreshCase(caseId).catch(caught => setError(String(caught))), 90); }; source.addEventListener('trace', schedule); const poll = window.setInterval(schedule, 1_500); return () => { source.close(); window.clearInterval(poll); if (refreshTimer.current) window.clearTimeout(refreshTimer.current); }; }, [currentCase?.id, currentCase?.stage, refreshCase]);
+  useEffect(() => { if (!currentCase || !ACTIVE_STAGES.has(currentCase.stage)) return; const caseId = currentCase.id; const generation = refreshGeneration.current; const source = new EventSource(`/api/cases/${encodeURIComponent(caseId)}/events?after=${currentCase.sequence}`); const schedule = () => { if (refreshTimer.current) window.clearTimeout(refreshTimer.current); refreshTimer.current = window.setTimeout(() => void refreshCase(caseId, generation).catch(caught => setError(String(caught))), 90); }; source.addEventListener('trace', schedule); const poll = window.setInterval(schedule, 1_500); return () => { source.close(); window.clearInterval(poll); if (refreshTimer.current) window.clearTimeout(refreshTimer.current); }; }, [currentCase?.id, currentCase?.stage, refreshCase]);
   useLayoutEffect(() => {
     const workbench = workbenchRef.current;
     const savedAgent = savedAgentRef.current;
@@ -187,8 +192,8 @@ export default function App() {
     return () => observer.disconnect();
   }, [currentCase?.jobs.map(job => job.replayJobId).join('|')]);
 
-  const begin = async () => { setBusy(true); setError(null); setSelectedOrder(null); try { if (currentCase && ['complete', 'denied_verified', 'failed'].includes(currentCase.stage)) await resetDemo(); setCurrentCase(await startCase()); } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); } finally { setBusy(false); } };
-  const showEmptyState = async () => { setBusy(true); setError(null); try { await returnToEmptyState(); setCurrentCase(null); setSelectedOrder(null); setInspectorOpen(false); } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); } finally { setBusy(false); } };
+  const begin = async () => { const generation = ++refreshGeneration.current; setBusy(true); setError(null); setSelectedOrder(null); try { if (currentCase && ['complete', 'denied_verified', 'failed'].includes(currentCase.stage)) await resetDemo(); const next = await startCase(); if (generation === refreshGeneration.current) setCurrentCase(next); } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); } finally { setBusy(false); } };
+  const showEmptyState = async () => { const generation = ++refreshGeneration.current; setBusy(true); setError(null); try { await returnToEmptyState(); if (generation === refreshGeneration.current) setCurrentCase(null); setSelectedOrder(null); setInspectorOpen(false); } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); } finally { setBusy(false); } };
   const requestAgain = async () => { if (!currentCase) return; setBusy(true); setError(null); try { setCurrentCase(await retryApproval(currentCase.id)); } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); } finally { setBusy(false); } };
   const submitDecision = async (decision: 'deny' | 'allow') => { if (!currentCase) return; setBusy(true); setError(null); try { setCurrentCase(await decide(currentCase.id, decision)); } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); await refreshCase(currentCase.id).catch(() => undefined); } finally { setBusy(false); } };
 

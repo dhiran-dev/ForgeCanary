@@ -87,6 +87,19 @@ describe('CaseStore', () => {
     expect(store.getVisible()?.id).toBe(second.id);
   });
 
+  it('makes a dismissed case read-only while preserving read access', () => {
+    const { store } = newStore();
+    const created = store.create({ mode: 'test', model: 'fixture/model' });
+    store.transition(created.id, 'preflight', 'preflight');
+    store.fail(created.id, new Error('Stopped safely'));
+    store.dismiss(created.id);
+
+    expect(store.require(created.id).dismissedAt).toBeTruthy();
+    expect(() => store.update(created.id, value => { value.summary = 'Reopened'; })).toThrow(
+      'was dismissed and is read-only'
+    );
+  });
+
   it('normalizes legacy denied cases before retry paths read new metadata', () => {
     const directory = mkdtempSync(join(tmpdir(), 'forgecanary-store-'));
     const path = join(directory, 'case.json');
@@ -227,5 +240,77 @@ describe('CaseStore', () => {
     expect(service.store.getVisible()).toBeNull();
     expect(service.store.require(created.id).stage).toBe('denied_verified');
     vi.unstubAllGlobals();
+  });
+
+  it('blocks a new run while return-to-empty owns the lifecycle transition', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'forgecanary-store-'));
+    const service = new ForgeCanaryService({
+      mode: 'test',
+      trueforgeBaseUrl: 'http://trueforge.test',
+      requestedModel: 'provider/model',
+      modelReasoningEffort: 'low',
+      v1BaseUrl: 'http://v1.test',
+      v2BaseUrl: 'http://v2.test',
+      controlBaseUrl: 'http://control.test',
+      caseStatePath: join(directory, 'case.json'),
+      savedAgentRefPath: join(directory, 'agent.json'),
+      baselineVersion: 'MCP v1',
+      candidateVersion: 'MCP v2'
+    });
+    const created = service.store.create({ mode: 'test', model: 'provider/model' });
+    service.store.transition(created.id, 'preflight', 'preflight');
+    service.store.fail(created.id, new Error('Stopped safely'));
+    const resetResolvers: Array<(response: Response) => void> = [];
+    const fetchMock = vi.fn().mockImplementation(() => new Promise<Response>(resolve => resetResolvers.push(resolve)));
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const emptying = service.returnToEmptyState();
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+
+      await expect(service.startCase()).rejects.toThrow('lifecycle operation emptying is already in progress');
+
+      for (const resolve of resetResolvers) resolve(new Response('{}', { status: 200 }));
+      await expect(emptying).resolves.toEqual({ case: null });
+      expect(service.store.getVisible()).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('rejects retrying approval after the denied case was dismissed', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'forgecanary-store-'));
+    const service = new ForgeCanaryService({
+      mode: 'test',
+      trueforgeBaseUrl: 'http://trueforge.test',
+      requestedModel: 'provider/model',
+      modelReasoningEffort: 'low',
+      v1BaseUrl: 'http://v1.test',
+      v2BaseUrl: 'http://v2.test',
+      controlBaseUrl: 'http://control.test',
+      caseStatePath: join(directory, 'case.json'),
+      savedAgentRefPath: join(directory, 'agent.json'),
+      baselineVersion: 'MCP v1',
+      candidateVersion: 'MCP v2'
+    });
+    const created = service.store.create({ mode: 'test', model: 'provider/model' });
+    for (const [stage, summary] of [
+      ['preflight', 'preflight'],
+      ['replaying_baseline', 'baseline'],
+      ['replaying_candidate', 'candidate'],
+      ['analyzing', 'analysis'],
+      ['regression_detected', 'regression'],
+      ['proposing_repair', 'repair'],
+      ['awaiting_approval', 'approval'],
+      ['denied_verified', 'denied']
+    ] as const) service.store.transition(created.id, stage, summary);
+    service.store.update(created.id, value => {
+      value.approval = { status: 'denied', sessionId: 'session_parent' };
+    });
+    service.store.dismiss(created.id);
+    vi.spyOn(service, 'initialize').mockResolvedValue('provider/model');
+
+    await expect(service.retryApproval(created.id)).rejects.toThrow('was dismissed and is read-only');
+    expect(service.store.require(created.id).stage).toBe('denied_verified');
   });
 });

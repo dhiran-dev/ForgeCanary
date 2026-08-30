@@ -140,6 +140,7 @@ export class ForgeCanaryService {
   private savedAgent: SavedReplayAgent | null = null;
   private activeTask: Promise<void> | null = null;
   private decisionTask: Promise<ForgeCanaryCase> | null = null;
+  private lifecycleOperation: 'starting' | 'resetting' | 'emptying' | null = null;
 
   constructor(config = readForgeCanaryConfig()) {
     this.config = config;
@@ -162,6 +163,7 @@ export class ForgeCanaryService {
     return {
       mode: this.config.mode,
       model,
+      reasoningEffort: this.config.modelReasoningEffort,
       savedAgentId: this.savedAgent?.id,
       savedAgentName: REPLAY_AGENT_DISPLAY_NAME,
       trueforgeBaseUrl: this.config.trueforgeBaseUrl,
@@ -188,61 +190,89 @@ export class ForgeCanaryService {
   }
 
   async startCase(): Promise<ForgeCanaryCase> {
-    if (this.activeTask) throw new Error('A ForgeCanary run is already active');
-    const model = await this.initialize();
-    if (!this.savedAgent) throw new Error('ForgeCanary saved agent was not initialized');
-    const created = this.store.create({
-      mode: this.config.mode,
-      model,
-      savedAgentId: this.savedAgent.id,
-      baselineVersion: this.config.baselineVersion,
-      candidateVersion: this.config.candidateVersion
-    });
-    this.store.append(created.id, {
-      source: 'forgecanary',
-      type: 'case.created',
-      title: created.historyTitle,
-      detail: 'ForgeCanary will replay the same work against the current and proposed MCP versions.'
-    });
-    this.activeTask = this.runCase(created.id)
-      .catch(error => {
-        this.store.fail(created.id, error);
-      })
-      .finally(() => {
-        this.activeTask = null;
+    const releaseLifecycle = this.acquireLifecycleOperation('starting');
+    try {
+      if (this.activeTask) throw new Error('A ForgeCanary run is already active');
+      const model = await this.initialize();
+      if (!this.savedAgent) throw new Error('ForgeCanary saved agent was not initialized');
+      const created = this.store.create({
+        mode: this.config.mode,
+        model,
+        savedAgentId: this.savedAgent.id,
+        baselineVersion: this.config.baselineVersion,
+        candidateVersion: this.config.candidateVersion
       });
-    return this.store.require(created.id);
+      this.store.append(created.id, {
+        source: 'forgecanary',
+        type: 'case.created',
+        title: created.historyTitle,
+        detail: 'ForgeCanary will replay the same work against the current and proposed MCP versions.'
+      });
+      this.activeTask = this.runCase(created.id)
+        .catch(error => {
+          this.store.fail(created.id, error);
+        })
+        .finally(() => {
+          this.activeTask = null;
+        });
+      return this.store.require(created.id);
+    } finally {
+      releaseLifecycle();
+    }
   }
 
   async resetDemo(): Promise<Record<string, unknown>> {
-    const current = this.store.get();
-    if (!isTerminal(current)) throw new Error(`Cannot reset while case ${current?.id} is ${current?.stage}`);
-    await Promise.all([
-      reset(this.config.v1BaseUrl),
-      reset(this.config.v2BaseUrl),
-      reset(this.config.controlBaseUrl)
-    ]);
-    return { reset: true, resetAt: new Date().toISOString() };
+    const releaseLifecycle = this.acquireLifecycleOperation('resetting');
+    try {
+      const current = this.store.get();
+      if (!isTerminal(current)) throw new Error(`Cannot reset while case ${current?.id} is ${current?.stage}`);
+      await Promise.all([
+        reset(this.config.v1BaseUrl),
+        reset(this.config.v2BaseUrl),
+        reset(this.config.controlBaseUrl)
+      ]);
+      return { reset: true, resetAt: new Date().toISOString() };
+    } finally {
+      releaseLifecycle();
+    }
   }
 
   async returnToEmptyState(): Promise<{ case: null }> {
-    let current = this.store.get();
-    if (!current) return { case: null };
+    const releaseLifecycle = this.acquireLifecycleOperation('emptying');
+    try {
+      let current = this.store.get();
+      if (!current || current.dismissedAt) return { case: null };
 
-    if (current.stage === 'awaiting_approval') {
-      await this.decideApproval(current.id, 'deny');
-      current = this.store.require(current.id);
-    } else if (this.activeTask || !isTerminal(current)) {
-      throw new Error(`Cannot return to empty state while case ${current.id} is ${current.stage}`);
+      if (current.stage === 'awaiting_approval') {
+        await this.decideApproval(current.id, 'deny');
+        current = this.store.require(current.id);
+      } else if (this.activeTask || !isTerminal(current)) {
+        throw new Error(`Cannot return to empty state while case ${current.id} is ${current.stage}`);
+      }
+
+      await Promise.all([
+        reset(this.config.v1BaseUrl),
+        reset(this.config.v2BaseUrl),
+        reset(this.config.controlBaseUrl)
+      ]);
+      this.store.dismiss(current.id);
+      return { case: null };
+    } finally {
+      releaseLifecycle();
     }
+  }
 
-    await Promise.all([
-      reset(this.config.v1BaseUrl),
-      reset(this.config.v2BaseUrl),
-      reset(this.config.controlBaseUrl)
-    ]);
-    this.store.dismiss(current.id);
-    return { case: null };
+  private acquireLifecycleOperation(operation: 'starting' | 'resetting' | 'emptying'): () => void {
+    if (this.lifecycleOperation) {
+      throw new Error(`ForgeCanary lifecycle operation ${this.lifecycleOperation} is already in progress`);
+    }
+    this.lifecycleOperation = operation;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      if (this.lifecycleOperation === operation) this.lifecycleOperation = null;
+    };
   }
 
   async retryApproval(caseId: string): Promise<ForgeCanaryCase> {

@@ -293,6 +293,7 @@ export class CaseStore {
 
   private requireMutable(caseId: string): ForgeCanaryCase {
     if (!this.current || this.current.id !== caseId) throw new Error(`Unknown or stale case: ${caseId}`);
+    if (this.current.dismissedAt) throw new Error(`Case ${caseId} was dismissed and is read-only`);
     return this.current;
   }
 
@@ -308,6 +309,8 @@ export function isCaseConflict(error: unknown): boolean {
     message.includes('Unknown or stale') ||
     message.includes('Invalid case') ||
     message.includes('Cannot dismiss case') ||
-    message.includes('Cannot return to empty state')
+    message.includes('Cannot return to empty state') ||
+    message.includes('lifecycle operation') ||
+    message.includes('was dismissed and is read-only')
   );
 }

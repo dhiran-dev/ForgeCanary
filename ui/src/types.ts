@@ -130,6 +130,7 @@ export interface ForgeCanaryCase {
 export interface PublicConfig {
   mode: 'live' | 'test';
   model: string;
+  reasoningEffort?: string;
   savedAgentId?: string;
   savedAgentName?: string;
   trueforgeBaseUrl: string;
