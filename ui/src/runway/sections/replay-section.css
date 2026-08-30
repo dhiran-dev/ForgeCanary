@@ -44,13 +44,13 @@
   width: min(570px, 34vw);
   position: absolute;
   z-index: 6;
-  top: 67px;
-  left: clamp(42px, 3vw, 58px);
+  top: 130px;
+  left: clamp(28px, 1.9vw, 32px);
 }
 
 .replay-story__eyebrow {
   display: block;
-  margin-bottom: 26px;
+  margin-bottom: 37px;
   color: var(--replay-green);
   font-family: var(--runway-font-system);
   font-size: 10px;
@@ -70,8 +70,8 @@
 }
 
 .replay-story__copy > p {
-  max-width: 420px;
-  margin: 10px 0 0;
+  max-width: 390px;
+  margin: 30px 0 0;
   color: var(--replay-steel);
   font-size: 17px;
   font-weight: 390;
@@ -85,7 +85,7 @@
   display: grid;
   align-content: center;
   gap: 21px;
-  margin-top: 40px;
+  margin-top: 50px;
   padding: 28px 30px;
   border: 1px solid var(--replay-line);
   border-radius: 1px;
@@ -120,6 +120,8 @@
   top: 33px;
   right: 10px;
   margin: 0;
+  transform: scale(0.86);
+  transform-origin: 68% 44%;
 }
 
 .replay-story__hardware,
@@ -456,6 +458,7 @@
     top: 390px;
     right: 50%;
     transform: translateX(50%);
+    transform-origin: center;
   }
   .replay-story__agent-label { min-width: min(160px, 40vw); padding: 7px 8px 6px; }
   .replay-story__agent-label--safety,

@@ -17,7 +17,7 @@
   width: 28.3%;
   position: absolute;
   z-index: 6;
-  top: 18.3%;
+  top: 22.2%;
   left: 3.3%;
 }
 
@@ -35,7 +35,8 @@
 
 .control-story-copy .runway-story-lede {
   width: 100%;
-  margin-top: 10px;
+  max-width: 430px;
+  margin-top: 32px;
   color: var(--story-silver);
   font-size: 17px;
   letter-spacing: -0.012em;
@@ -46,7 +47,7 @@
   width: 90%;
   display: grid;
   gap: 15px;
-  margin-top: 40px;
+  margin-top: 60px;
 }
 
 .control-story-action {
@@ -115,6 +116,8 @@
   z-index: 1;
   margin: 0;
   container-type: inline-size;
+  transform: scale(0.84);
+  transform-origin: 68% 48%;
 }
 
 .control-story-conduits { z-index: 1; }
@@ -299,6 +302,7 @@
     inset: auto;
     aspect-ratio: 1672 / 941;
     margin: 34px 0 0 -27%;
+    transform: none;
   }
 }
 

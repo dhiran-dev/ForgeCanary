@@ -34,7 +34,7 @@
 }
 
 .proof-story-copy .runway-story-eyebrow {
-  margin-bottom: 26px;
+  margin-bottom: 37px;
   font-size: 10px;
   letter-spacing: 0.17em;
 }
@@ -46,8 +46,8 @@
 }
 
 .proof-story-copy .runway-story-lede {
-  max-width: 430px;
-  margin-top: 10px;
+  max-width: 380px;
+  margin-top: 42px;
   color: #bababb;
   font-size: 17px;
   letter-spacing: -0.012em;
@@ -55,8 +55,8 @@
 }
 
 .proof-story-receipt {
-  width: 84%;
-  margin-top: 26px;
+  width: 88.3%;
+  margin-top: 35px;
   padding: 11px 30px 26px;
   background: linear-gradient(145deg, #171a1d, #0f1214);
 }
@@ -134,7 +134,7 @@
 .proof-story-check--pending::after { display: none; }
 
 .proof-story-actions {
-  width: 84%;
+  width: 88.3%;
   display: grid;
   gap: 15px;
   margin-top: 18px;
@@ -182,6 +182,8 @@
   z-index: 1;
   margin: 0;
   container-type: inline-size;
+  transform: scale(0.86);
+  transform-origin: 68% 48%;
 }
 
 .proof-story-conduits { z-index: 1; }
@@ -454,5 +456,6 @@
     inset: auto;
     aspect-ratio: 1672 / 941;
     margin: 36px 0 0 -34%;
+    transform: none;
   }
 }

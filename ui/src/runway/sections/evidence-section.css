@@ -154,6 +154,8 @@
   position: absolute;
   z-index: 2;
   inset: 0;
+  transform: scale(0.86);
+  transform-origin: 68% 43%;
 }
 
 .evidence-story__hardware,
@@ -483,6 +485,7 @@
     top: 590px;
     left: 50%;
     transform: translateX(-64%);
+    transform-origin: center;
   }
   .evidence-story__outcome { display: none; }
 }
