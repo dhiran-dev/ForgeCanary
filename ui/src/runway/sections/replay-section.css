@@ -50,7 +50,7 @@
 
 .replay-story__eyebrow {
   display: block;
-  margin-bottom: 37px;
+  margin-bottom: 48px;
   color: var(--replay-green);
   font-family: var(--runway-font-system);
   font-size: 10px;
@@ -85,7 +85,7 @@
   display: grid;
   align-content: center;
   gap: 21px;
-  margin-top: 50px;
+  margin-top: 88px;
   padding: 28px 30px;
   border: 1px solid var(--replay-line);
   border-radius: 1px;

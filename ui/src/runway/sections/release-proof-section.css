@@ -34,7 +34,7 @@
 }
 
 .proof-story-copy .runway-story-eyebrow {
-  margin-bottom: 37px;
+  margin-bottom: 44px;
   font-size: 10px;
   letter-spacing: 0.17em;
 }
@@ -46,7 +46,7 @@
 }
 
 .proof-story-copy .runway-story-lede {
-  max-width: 380px;
+  max-width: 320px;
   margin-top: 42px;
   color: #bababb;
   font-size: 17px;
@@ -56,7 +56,7 @@
 
 .proof-story-receipt {
   width: 88.3%;
-  margin-top: 35px;
+  margin-top: 30px;
   padding: 11px 30px 26px;
   background: linear-gradient(145deg, #171a1d, #0f1214);
 }
@@ -94,7 +94,7 @@
 }
 
 .proof-story-receipt li {
-  min-height: clamp(43px, 3.35vw, 54px);
+  min-height: clamp(43px, 3.1vw, 50px);
   display: flex;
   align-items: center;
   gap: 16px;

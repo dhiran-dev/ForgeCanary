@@ -22,7 +22,7 @@
 }
 
 .control-story-copy .runway-story-eyebrow {
-  margin-bottom: 26px;
+  margin-bottom: 31px;
   font-size: 10px;
   letter-spacing: 0.17em;
 }
@@ -36,7 +36,7 @@
 .control-story-copy .runway-story-lede {
   width: 100%;
   max-width: 430px;
-  margin-top: 32px;
+  margin-top: 48px;
   color: var(--story-silver);
   font-size: 17px;
   letter-spacing: -0.012em;
@@ -47,7 +47,7 @@
   width: 90%;
   display: grid;
   gap: 15px;
-  margin-top: 60px;
+  margin-top: 43px;
 }
 
 .control-story-action {
@@ -82,7 +82,7 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  margin: 37px 0 0;
+  margin: 43px 0 0;
   color: #a3a4a5;
   font-family: var(--runway-font-system);
   font-size: clamp(8px, 0.68vw, 11px);

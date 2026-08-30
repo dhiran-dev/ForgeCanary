@@ -84,7 +84,7 @@
 
 .evidence-story__eyebrow {
   display: block;
-  margin-bottom: 26px;
+  margin-bottom: 46px;
   color: var(--evidence-green);
   font-family: var(--evidence-mono);
   font-size: 10px;
@@ -106,7 +106,7 @@
 
 .evidence-story__copy > p {
   max-width: 455px;
-  margin: 10px 0 0;
+  margin: 54px 0 0;
   color: var(--evidence-silver);
   font-family: var(--evidence-human);
   font-size: 17px;
@@ -120,7 +120,7 @@
   min-height: 141px;
   display: grid;
   grid-template-rows: 1fr 1fr;
-  margin-top: 39px;
+  margin-top: 68px;
   padding: 0 25px;
   border: 1px solid var(--evidence-line);
   background: rgb(6 9 8 / 0.48);
