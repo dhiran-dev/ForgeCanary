@@ -100,7 +100,7 @@ export function ReleaseProofSection({
   illustrative,
   trueforgeUrl
 }: ReleaseProofSectionProps) {
-  const [hardwareReady, setHardwareReady] = useState(false);
+  const [hardwareState, setHardwareState] = useState<'loading' | 'ready' | 'error'>('loading');
   const {
     displayJobs,
     verifiedCells,
@@ -148,7 +148,7 @@ export function ReleaseProofSection({
           </div>
         </div>
 
-        <figure className={`runway-story-visual proof-story-scene${hardwareReady ? ' is-hardware-ready' : ''}`} aria-label={figureLabel}>
+        <figure className={`runway-story-visual proof-story-scene${hardwareState === 'ready' ? ' is-hardware-ready' : hardwareState === 'error' ? ' is-hardware-error' : ''}`} aria-label={figureLabel}>
           <svg className="runway-story-conduits proof-story-conduits" viewBox="0 0 1672 941" aria-hidden="true">
             <defs>
               <path id="proof-route-current" d="M 796 195 H 842 Q 868 195 868 224 V 284 Q 868 309 895 309 H 915" />
@@ -208,9 +208,15 @@ export function ReleaseProofSection({
             height="941"
             loading="eager"
             decoding="async"
-            onLoad={() => setHardwareReady(true)}
+            onLoad={() => setHardwareState('ready')}
+            onError={() => setHardwareState('error')}
             alt=""
           />
+
+          <div className="runway-story-asset-fallback" role="status">
+            <strong>HARDWARE DIAGRAM UNAVAILABLE</strong>
+            <span>The proof state remains available in the release summary.</span>
+          </div>
 
           <div className="proof-story-node proof-story-node--current">
             <span className="proof-story-icon proof-story-icon--down" aria-hidden="true">↓</span>

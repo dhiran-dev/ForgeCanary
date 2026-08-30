@@ -40,9 +40,11 @@ describe('runway story image plates', () => {
 
     for (const source of sections) {
       expect(source).toContain('runway-story-visual');
-      expect(source).toContain("hardwareReady ? ' is-hardware-ready' : ''");
+      expect(source).toContain("hardwareState === 'ready' ? ' is-hardware-ready'");
+      expect(source).toContain("hardwareState === 'error' ? ' is-hardware-error'");
       expect(source).toContain('loading="eager"');
-      expect(source).toContain('onLoad={() => setHardwareReady(true)}');
+      expect(source).toContain("onLoad={() => setHardwareState('ready')}");
+      expect(source).toContain("onError={() => setHardwareState('error')}");
     }
   });
 });

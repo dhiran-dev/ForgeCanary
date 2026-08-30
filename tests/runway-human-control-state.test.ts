@@ -7,7 +7,8 @@ import {
 const readyView: HumanControlView = {
   phase: 'ready',
   changesFound: 0,
-  needsOperator: false
+  needsOperator: false,
+  isRunning: false
 };
 
 function state(overrides: Partial<HumanControlView> = {}, illustrative = false, reducedMotion = false) {
@@ -25,12 +26,13 @@ describe('Human control story state', () => {
   });
 
   it('does not invent a mismatch when a clean comparison starts', () => {
-    const comparison = state({ phase: 'compare' });
+    const comparison = state({ phase: 'compare', isRunning: true });
 
     expect(comparison.mismatchKnown).toBe(false);
     expect(comparison.status).toBe('NO BEHAVIOR CHANGE FOUND');
     expect(comparison.gateLabel).toBe('NO CHANGE FOUND');
     expect(comparison.mismatchIsMoving).toBe(false);
+    expect(comparison.signalIsMoving).toBe(true);
   });
 
   it('announces a real mismatch and holds it for the operator', () => {
@@ -40,8 +42,8 @@ describe('Human control story state', () => {
     expect(blocked.gateHeld).toBe(true);
     expect(blocked.status).toBe('RELEASE HELD / AWAITING OPERATOR');
     expect(blocked.gateLabel).toBe('DECISION REQUIRED');
-    expect(blocked.signalIsMoving).toBe(true);
-    expect(blocked.mismatchIsMoving).toBe(true);
+    expect(blocked.signalIsMoving).toBe(false);
+    expect(blocked.mismatchIsMoving).toBe(false);
   });
 
   it('stops explanatory flow after a failed run', () => {
@@ -52,7 +54,7 @@ describe('Human control story state', () => {
   });
 
   it('removes every moving packet for reduced motion', () => {
-    const reduced = state({ phase: 'compare', changesFound: 1 }, false, true);
+    const reduced = state({ phase: 'compare', changesFound: 1, isRunning: true }, false, true);
 
     expect(reduced.signalIsMoving).toBe(false);
     expect(reduced.mismatchIsMoving).toBe(false);

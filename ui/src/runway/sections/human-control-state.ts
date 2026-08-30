@@ -2,6 +2,7 @@ export type HumanControlView = {
   phase: 'ready' | 'current' | 'replay' | 'compare' | 'blocked' | 'repair' | 'complete' | 'failed';
   changesFound: number;
   needsOperator: boolean;
+  isRunning: boolean;
 };
 
 export type HumanControlState = {
@@ -21,7 +22,7 @@ export function deriveHumanControlState(
 ): HumanControlState {
   const mismatchKnown = illustrative || view.changesFound > 0;
   const gateHeld = illustrative || view.phase === 'blocked' || view.phase === 'failed' || view.needsOperator;
-  const signalIsMoving = !reducedMotion && view.phase !== 'failed';
+  const signalIsMoving = !reducedMotion && (illustrative || view.isRunning);
   const mismatchIsMoving = signalIsMoving
     && mismatchKnown
     && (illustrative || view.phase === 'compare' || view.phase === 'blocked');

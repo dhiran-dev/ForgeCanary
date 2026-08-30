@@ -11,7 +11,8 @@ const readyView: ReplayStoryView = {
   jobsReplayed: 0,
   replayExecutions: 0,
   changesFound: 0,
-  repairedJobs: 0
+  repairedJobs: 0,
+  isRunning: false
 };
 
 function state(overrides: Partial<ReplayStoryView> = {}, illustrative = false, reducedMotion = false) {
@@ -30,7 +31,7 @@ describe('Replay story state', () => {
     expect(demo.replayMoving).toBe(true);
   });
 
-  it('shows zero progress while keeping the explanatory flow visible before replay starts', () => {
+  it('shows zero progress without reporting live traffic before replay starts', () => {
     const ready = state();
 
     expect(ready.narrative.label).toBe('LIVE / READY');
@@ -38,12 +39,12 @@ describe('Replay story state', () => {
     expect(statusCount(ready.upgradeCompleted, ready.upgradeActive)).toBe('00 / 06 WAITING');
     expect(ready.hasMismatch).toBe(false);
     expect(ready.heldChanges).toBe(0);
-    expect(ready.replayMoving).toBe(true);
+    expect(ready.replayMoving).toBe(false);
     expect(ready.activeStage).toBe(0);
   });
 
   it('does not mark a zero-execution replay complete', () => {
-    const replay = state({ phase: 'replay', phaseIndex: 1 });
+    const replay = state({ phase: 'replay', phaseIndex: 1, isRunning: true });
 
     expect(replay.completed).toBe(0);
     expect(replay.baselineCompleted).toBe(0);
@@ -52,12 +53,13 @@ describe('Replay story state', () => {
   });
 
   it('only exposes mismatch motion after an observed comparison change', () => {
-    const cleanCompare = state({ phase: 'compare', phaseIndex: 2, jobsReplayed: 6 });
+    const cleanCompare = state({ phase: 'compare', phaseIndex: 2, jobsReplayed: 6, isRunning: true });
     const changedCompare = state({
       phase: 'compare',
       phaseIndex: 2,
       jobsReplayed: 6,
-      changesFound: 1
+      changesFound: 1,
+      isRunning: true
     });
 
     expect(cleanCompare.hasMismatch).toBe(false);
@@ -66,7 +68,7 @@ describe('Replay story state', () => {
     expect(changedCompare.mismatchMoving).toBe(true);
   });
 
-  it('keeps the main flow visible after completion but stops failures and reduced motion', () => {
+  it('stops the main flow after completion, failure, or reduced motion', () => {
     const complete = state({
       phase: 'complete',
       phaseIndex: 3,
@@ -76,9 +78,9 @@ describe('Replay story state', () => {
       changesFound: 1
     });
     const failed = state({ phase: 'failed', phaseIndex: 3, changesFound: 1 });
-    const reduced = state({ phase: 'replay', phaseIndex: 1 }, false, true);
+    const reduced = state({ phase: 'replay', phaseIndex: 1, isRunning: true }, false, true);
 
-    expect(complete.replayMoving).toBe(true);
+    expect(complete.replayMoving).toBe(false);
     expect(complete.mismatchMoving).toBe(false);
     expect(failed.replayMoving).toBe(false);
     expect(failed.mismatchMoving).toBe(false);

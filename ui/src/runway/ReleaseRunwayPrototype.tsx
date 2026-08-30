@@ -11,6 +11,7 @@ import type { ForgeCanaryCase, HealthState, PublicConfig } from '../types';
 import ReleaseRunwayLayeredScene from './ReleaseRunwayLayeredScene';
 import ReleaseRunwaySections from './ReleaseRunwaySections';
 import {
+  activeRunwayError,
   initialRunwayErrorState,
   reduceRunwayErrors
 } from './runway-errors';
@@ -37,7 +38,7 @@ export default function ReleaseRunwayPrototype() {
   const [health, setHealth] = useState<HealthState | null>(null);
   const [currentCase, setCurrentCase] = useState<ForgeCanaryCase | null>(null);
   const [initializing, setInitializing] = useState(true);
-  const [, dispatchError] = useReducer(reduceRunwayErrors, initialRunwayErrorState);
+  const [errors, dispatchError] = useReducer(reduceRunwayErrors, initialRunwayErrorState);
   const [sceneReady, setSceneReady] = useState(false);
   const refreshTimer = useRef<number | null>(null);
   const reducedMotion = useReducedMotion();
@@ -87,7 +88,8 @@ export default function ReleaseRunwayPrototype() {
   }, [currentCase?.id, currentCase?.stage, refreshCase]);
 
   const view = useMemo(() => deriveRunwayView(currentCase), [currentCase]);
-  const servicesReady = Boolean(config && health?.ok);
+  const error = activeRunwayError(errors);
+  const servicesReady = Boolean(config && health?.ok && !error);
 
   const readyScene = useCallback(() => setSceneReady(true), []);
 
@@ -96,10 +98,16 @@ export default function ReleaseRunwayPrototype() {
       <header className="runway-nav">
         <a className="runway-brand" href="/runway" aria-label="ForgeCanary home">ForgeCanary</a>
         <div className="runway-nav-actions">
-          <div className={`runway-connection ${servicesReady ? 'online' : ''}`}>
+          <div
+            className={`runway-connection ${servicesReady ? 'online' : ''}`}
+            role="status"
+            aria-live="polite"
+          >
             <i />
             <span>{initializing ? 'CONNECTING TRUEFORGE' : servicesReady ? 'TRUEFORGE CONNECTED' : 'TRUEFORGE ATTENTION'}</span>
-            {config?.model && <small>{config.model}</small>}
+            {(error || config?.model) && (
+              <small className={error ? 'is-error' : ''} title={error ?? undefined}>{error ?? config?.model}</small>
+            )}
           </div>
         </div>
       </header>
@@ -138,7 +146,7 @@ export default function ReleaseRunwayPrototype() {
       <ReleaseRunwaySections
         view={view}
         reducedMotion={reducedMotion}
-        illustrative={!currentCase}
+        illustrative={!currentCase && !error}
         trueforgeUrl={config?.trueforgeUiUrl}
       />
     </div>

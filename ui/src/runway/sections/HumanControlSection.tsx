@@ -62,7 +62,7 @@ function ScreenCheck() {
 }
 
 export default function HumanControlSection({ view, reducedMotion, illustrative }: HumanControlSectionProps) {
-  const [hardwareReady, setHardwareReady] = useState(false);
+  const [hardwareState, setHardwareState] = useState<'loading' | 'ready' | 'error'>('loading');
   const {
     mismatchKnown,
     signalIsMoving,
@@ -109,7 +109,7 @@ export default function HumanControlSection({ view, reducedMotion, illustrative 
           <span className="control-story-live-state" aria-live="polite" aria-atomic="true">{status}</span>
         </div>
 
-        <figure className={`runway-story-visual control-story-scene${hardwareReady ? ' is-hardware-ready' : ''}`} aria-label="Current and upgrade outcomes held at a closed human-controlled release gate">
+        <figure className={`runway-story-visual control-story-scene${hardwareState === 'ready' ? ' is-hardware-ready' : hardwareState === 'error' ? ' is-hardware-error' : ''}`} aria-label="Current and upgrade outcomes held at a closed human-controlled release gate">
           <svg className="runway-story-conduits control-story-conduits" viewBox="0 0 1672 941" aria-hidden="true">
             <defs>
               <path id="control-route-request-current" d="M 946 139 H 886 Q 860 139 860 166 V 248" />
@@ -155,9 +155,15 @@ export default function HumanControlSection({ view, reducedMotion, illustrative 
             height="941"
             loading="eager"
             decoding="async"
-            onLoad={() => setHardwareReady(true)}
+            onLoad={() => setHardwareState('ready')}
+            onError={() => setHardwareState('error')}
             alt=""
           />
+
+          <div className="runway-story-asset-fallback" role="status">
+            <strong>HARDWARE DIAGRAM UNAVAILABLE</strong>
+            <span>The release remains held for an operator decision.</span>
+          </div>
 
           <div className="control-story-screen control-story-screen--request">
             <span>AGENT REQUEST</span>

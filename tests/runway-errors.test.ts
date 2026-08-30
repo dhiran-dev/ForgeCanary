@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   activeRunwayError,
@@ -17,6 +19,15 @@ const rejected = (reason: unknown): PromiseRejectedResult => ({
 });
 
 describe('release runway errors', () => {
+  it('keeps reducer failures visible and disables the illustrative state', () => {
+    const source = readFileSync(join(process.cwd(), 'ui/src/runway/ReleaseRunwayPrototype.tsx'), 'utf8');
+
+    expect(source).toContain('const [errors, dispatchError]');
+    expect(source).toContain('activeRunwayError(errors)');
+    expect(source).toContain('role="status"');
+    expect(source).toContain("illustrative={!currentCase && !error}");
+  });
+
   it('clears a transient refresh failure after the next successful poll', () => {
     const failed = reduceRunwayErrors(initialRunwayErrorState, {
       type: 'refresh-failed',

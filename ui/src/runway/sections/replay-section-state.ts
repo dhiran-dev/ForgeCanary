@@ -5,6 +5,7 @@ export type ReplayStoryView = {
   replayExecutions: number;
   changesFound: number;
   repairedJobs: number;
+  isRunning: boolean;
 };
 
 export type ReplayStoryState = {
@@ -79,7 +80,7 @@ export function deriveReplayStoryState(
     : view.phase === 'repair'
       ? Math.min(6, view.repairedJobs)
       : Math.min(6, Math.max(0, view.replayExecutions - 6));
-  const explanatoryFlowIsMoving = !reducedMotion && view.phase !== 'failed';
+  const explanatoryFlowIsMoving = !reducedMotion && (illustrative || view.isRunning);
 
   return {
     completed: replayProgress(view, illustrative),

@@ -100,6 +100,16 @@ body:has(.runway-page) {
 }
 
 .runway-connection small { display: none; }
+.runway-connection small.is-error {
+  display: block;
+  max-width: min(420px, 34vw);
+  overflow: hidden;
+  color: var(--runway-coral);
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .runway-hero {
   height: calc(100svh - 64px);
