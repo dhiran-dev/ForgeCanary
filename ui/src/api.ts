@@ -45,6 +45,10 @@ export async function resetDemo(): Promise<void> {
   await json('/api/demo/reset', { method: 'POST', body: '{}' });
 }
 
+export async function returnToEmptyState(): Promise<null> {
+  return (await json<{ case: null }>('/api/demo/empty', { method: 'POST', body: '{}' })).case;
+}
+
 export async function decide(caseId: string, decision: 'allow' | 'deny'): Promise<ForgeCanaryCase> {
   return (
     await json<{ case: ForgeCanaryCase }>(`/api/cases/${encodeURIComponent(caseId)}/approval`, {

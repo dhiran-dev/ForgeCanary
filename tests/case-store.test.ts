@@ -67,6 +67,26 @@ describe('CaseStore', () => {
     expect(second.historyTitle).toBe('Release check: MCP v1 → MCP v3');
   });
 
+  it('dismisses a terminal case from the Studio without losing its next-run history', () => {
+    const { path, store } = newStore();
+    const first = store.create({ mode: 'test', model: 'fixture/model' });
+    store.transition(first.id, 'preflight', 'preflight');
+    store.fail(first.id, new Error('Stopped safely'));
+
+    store.dismiss(first.id);
+
+    expect(store.getVisible()).toBeNull();
+    expect(store.require(first.id).dismissedAt).toBeTruthy();
+    expect(new CaseStore(path).getVisible()).toBeNull();
+
+    const second = store.create({ mode: 'test', model: 'fixture/model' });
+    expect(second.releaseHistory).toContainEqual(expect.objectContaining({
+      caseId: first.id,
+      finalVerdict: 'blocked'
+    }));
+    expect(store.getVisible()?.id).toBe(second.id);
+  });
+
   it('normalizes legacy denied cases before retry paths read new metadata', () => {
     const directory = mkdtempSync(join(tmpdir(), 'forgecanary-store-'));
     const path = join(directory, 'case.json');
@@ -165,5 +185,47 @@ describe('CaseStore', () => {
     expect(retried.receipt).toBeUndefined();
     expect(retried.receiptHistory).toEqual([{ receiptHash: 'legacy-hash' }]);
     expect(retried.parentSessionId).toBe('session_legacy_parent');
+  });
+
+  it('denies a pending repair before returning the Studio to its empty state', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'forgecanary-store-'));
+    const path = join(directory, 'case.json');
+    const service = new ForgeCanaryService({
+      mode: 'test',
+      trueforgeBaseUrl: 'http://trueforge.test',
+      requestedModel: 'provider/model',
+      modelReasoningEffort: 'low',
+      v1BaseUrl: 'http://v1.test',
+      v2BaseUrl: 'http://v2.test',
+      controlBaseUrl: 'http://control.test',
+      caseStatePath: path,
+      savedAgentRefPath: join(directory, 'agent.json'),
+      baselineVersion: 'MCP v1',
+      candidateVersion: 'MCP v2'
+    });
+    const created = service.store.create({ mode: 'test', model: 'provider/model' });
+    for (const [stage, summary] of [
+      ['preflight', 'preflight'],
+      ['replaying_baseline', 'baseline'],
+      ['replaying_candidate', 'candidate'],
+      ['analyzing', 'analysis'],
+      ['regression_detected', 'regression'],
+      ['proposing_repair', 'repair'],
+      ['awaiting_approval', 'approval']
+    ] as const) service.store.transition(created.id, stage, summary);
+    const decision = vi.spyOn(service, 'decideApproval').mockImplementation(async caseId => {
+      service.store.transition(caseId, 'denied_verified', 'Denied safely.');
+      return service.store.require(caseId);
+    });
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(service.returnToEmptyState()).resolves.toEqual({ case: null });
+
+    expect(decision).toHaveBeenCalledWith(created.id, 'deny');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(service.store.getVisible()).toBeNull();
+    expect(service.store.require(created.id).stage).toBe('denied_verified');
+    vi.unstubAllGlobals();
   });
 });

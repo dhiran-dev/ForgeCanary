@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { decide, loadCase, loadConfig, loadCurrentCase, loadHealth, resetDemo, retryApproval, startCase } from './api';
+import { decide, loadCase, loadConfig, loadCurrentCase, loadHealth, resetDemo, retryApproval, returnToEmptyState, startCase } from './api';
 import { ForgeCanaryBrand } from './components/ForgeCanaryBrand';
 import { GlassConduit } from './components/GlassConduit';
 import { GlossyWorkerTask } from './components/GlossyWorkerTask';
@@ -118,6 +118,24 @@ function ParentRunInspectorModal({ value, jobs, onClose }: { value: ForgeCanaryC
   </dialog>;
 }
 
+function EmptyWorkbench({ config, busy, servicesReady, onStart }: { config: PublicConfig | null; busy: boolean; servicesReady: boolean; onStart: () => void }) {
+  return <section className="studio-empty-state" aria-labelledby="empty-state-title">
+    <article className="machine-node saved-agent-machine empty-saved-agent" aria-label="Reusable saved agent configuration">
+      <MachineChassis ports={['right']}/>
+      <div className="machine-copy saved-agent-copy"><div className="module-label"><Icon name="agent"/> SAVED AGENT</div><div className="agent-core"><span className="agent-glyph"><Icon name="agent"/></span><div><h2>{config?.savedAgentName ?? 'ForgeCanary Replay Worker'}</h2><p>Reusable configuration</p></div></div><dl className="module-spec"><div><dt>MODEL</dt><dd>{short(config?.model, 20)}</dd></div><div><dt>REASONING</dt><dd>low</dd></div><div><dt>CONNECTORS</dt><dd>{config?.connectors.length ?? 3} armed</dd></div><div><dt>APPROVAL</dt><dd>writes pause</dd></div></dl><div className="persistent-tag"><StatusDot status="verified"/> Preserved between runs</div></div>
+    </article>
+    <div className="empty-state-link" aria-hidden="true"><span/><i>READY</i><span/></div>
+    <article className="empty-release-card">
+      <div className="empty-state-mark"><Icon name="run"/></div>
+      <span className="eyebrow">NO PARENT RUN</span>
+      <h2 id="empty-state-title">Ready for a fresh release check.</h2>
+      <p>The saved agent is configured. Starting creates one new parent session, then workers appear only as their replay jobs are dispatched.</p>
+      <button className="button primary" disabled={busy || !servicesReady} onClick={onStart}>Start release check <span>→</span></button>
+      <div className="empty-state-sequence"><span>01 FRESH PARENT</span><span>02 SIX REPLAYS</span><span>03 HUMAN DECISION</span><span>04 RECEIPT</span></div>
+    </article>
+  </section>;
+}
+
 export default function App() {
   const [config, setConfig] = useState<PublicConfig | null>(null);
   const [health, setHealth] = useState<HealthState | null>(null);
@@ -170,6 +188,7 @@ export default function App() {
   }, [currentCase?.jobs.map(job => job.replayJobId).join('|')]);
 
   const begin = async () => { setBusy(true); setError(null); setSelectedOrder(null); try { if (currentCase && ['complete', 'denied_verified', 'failed'].includes(currentCase.stage)) await resetDemo(); setCurrentCase(await startCase()); } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); } finally { setBusy(false); } };
+  const showEmptyState = async () => { setBusy(true); setError(null); try { await returnToEmptyState(); setCurrentCase(null); setSelectedOrder(null); setInspectorOpen(false); } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); } finally { setBusy(false); } };
   const requestAgain = async () => { if (!currentCase) return; setBusy(true); setError(null); try { setCurrentCase(await retryApproval(currentCase.id)); } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); } finally { setBusy(false); } };
   const submitDecision = async (decision: 'deny' | 'allow') => { if (!currentCase) return; setBusy(true); setError(null); try { setCurrentCase(await decide(currentCase.id, decision)); } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); await refreshCase(currentCase.id).catch(() => undefined); } finally { setBusy(false); } };
 
@@ -185,6 +204,7 @@ export default function App() {
           ? 'running'
           : 'queued';
   const runLabel = busy ? 'Starting…' : stage === 'awaiting_approval' ? 'Waiting for approval' : active ? 'Release check running' : currentCase ? 'Start fresh release check' : 'Start release check';
+  const canReturnToEmpty = Boolean(currentCase) && !busy && (stage === 'awaiting_approval' || !active);
   const anyWorkerWorking = jobs.some(job => job.workerStatus === 'spawning' || job.workerStatus === 'running');
   const measuredWorkers = jobs.flatMap(job => {
     const point = machineGeometry.workers[job.replayJobId];
@@ -196,11 +216,13 @@ export default function App() {
     : undefined;
 
   return <div className="forge-shell">
-    <header className="app-header"><ForgeCanaryBrand className="brand" href="/" ariaLabel="ForgeCanary landing page"/><div className="header-status"><StatusDot status={servicesReady ? 'verified' : 'failed'}/><span>{initializing ? 'Connecting' : servicesReady ? 'TrueForge connected' : 'Services need attention'}</span><code>{short(config?.model, 28)}</code></div><nav><a href={config?.trueforgeUiUrl ?? 'http://localhost:8790'} target="_blank" rel="noreferrer">Open TrueForge ↗</a></nav></header>
-    <main className="release-page">
-      <section className="release-heading"><div><span className="eyebrow">AGENT WORKBENCH</span><h1>Release check: <b>{currentCase?.baselineVersion ?? 'MCP v1'}</b> <em>→</em> <b>{currentCase?.candidateVersion ?? 'MCP v2'}</b></h1></div><button className="button primary start-button" disabled={busy || active || initializing || !servicesReady} onClick={begin}>{runLabel}<span>→</span></button></section>
-      <nav className="phase-rail" aria-label="Release phases">{PHASES.map((phase, index) => <div className={index < activePhase ? 'done' : index === activePhase ? 'active' : ''} key={phase}><span>{index < activePhase ? '✓' : String(index + 1).padStart(2, '0')}</span><strong>{phase}</strong></div>)}</nav>
+    <header className="studio-topbar">
+      <div className="app-header"><ForgeCanaryBrand className="brand" href="/" ariaLabel="ForgeCanary landing page"/><div className="release-identity"><span className="eyebrow">AGENT WORKBENCH</span><h1>Release check: <b>{currentCase?.baselineVersion ?? 'MCP v1'}</b> <em>→</em> <b>{currentCase?.candidateVersion ?? 'MCP v2'}</b></h1></div><div className="header-status"><StatusDot status={servicesReady ? 'verified' : 'failed'}/><span>{initializing ? 'Connecting' : servicesReady ? 'TrueForge connected' : 'Services need attention'}</span><code>{short(config?.model, 22)}</code></div><nav className="studio-actions">{currentCase && <button className="empty-state-action" type="button" disabled={!canReturnToEmpty} title={canReturnToEmpty ? 'Safely close this run and return to the empty Studio' : 'Available at approval or after the run finishes'} onClick={showEmptyState}><Icon name="history"/><span>Return to empty</span></button>}<a href={config?.trueforgeUiUrl ?? 'http://localhost:8790'} target="_blank" rel="noreferrer">TrueForge ↗</a><button className="button primary start-button" disabled={busy || active || initializing || !servicesReady} onClick={begin}>{runLabel}<span>→</span></button></nav></div>
+      <nav className={`phase-rail${currentCase ? '' : ' is-empty'}`} aria-label="Release phases">{PHASES.map((phase, index) => <div className={currentCase ? (index < activePhase ? 'done' : index === activePhase ? 'active' : '') : ''} key={phase}><span>{currentCase && index < activePhase ? '✓' : String(index + 1).padStart(2, '0')}</span><strong>{phase}</strong></div>)}</nav>
+    </header>
+    <main className={`release-page${currentCase ? '' : ' is-empty'}`}>
       {error && <div className="error-banner" role="alert"><strong>{stage === 'failed' ? 'Stopped safely.' : 'Runtime notice.'}</strong><span>{error}</span></div>}
+      {!currentCase ? <EmptyWorkbench config={config} busy={busy || initializing} servicesReady={servicesReady} onStart={begin}/> : <>
       <section ref={workbenchRef} className={`workbench machine-workbench phase-${activePhase}`}>
         <svg className="machine-conduits" viewBox={`0 0 ${machineGeometry.width} ${machineGeometry.height}`} aria-hidden="true">
           {machineGeometry.savedOutput && machineGeometry.parentInput && <GlassConduit
@@ -237,6 +259,7 @@ export default function App() {
         <DetailPanel value={currentCase} selected={selected} busy={busy} onDecision={submitDecision} onRetry={requestAgain}/>
       </section>
       <section className="run-inspector" aria-label="Parent run inspection"><span className="run-inspector-meta"><Icon name="history"/><span><strong>{currentCase?.historyTitle ?? 'Release check history'}</strong><small>{currentCase ? `${jobs.length} replay jobs · ${currentCase.events.length} persisted events · ${currentCase.releaseHistory?.length ?? 0} prior checks` : 'One meaningful entry per release check'}</small></span></span><button className="run-inspector-trigger" type="button" onClick={() => setInspectorOpen(true)}>Inspect parent run <span aria-hidden="true">↗</span></button></section>
+      </>}
     </main>
     {inspectorOpen && <ParentRunInspectorModal value={currentCase} jobs={jobs} onClose={() => setInspectorOpen(false)}/>}
   </div>;

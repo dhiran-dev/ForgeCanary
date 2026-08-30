@@ -83,4 +83,15 @@ describe('runway story image plates', () => {
     expect(app).not.toContain('const ORDER_IDS');
     expect(app).not.toContain('jobs[index]');
   });
+
+  it('has a safe persistent empty state and compact Studio controls', () => {
+    const app = readFileSync(join(process.cwd(), 'ui/src/App.tsx'), 'utf8');
+    const server = readFileSync(join(process.cwd(), 'src/evidence-server.ts'), 'utf8');
+
+    expect(app).toContain('className="studio-topbar"');
+    expect(app).toContain('<span>Return to empty</span>');
+    expect(app).toContain('!currentCase ? <EmptyWorkbench');
+    expect(server).toContain("url.pathname === '/api/demo/empty'");
+    expect(server).toContain('service.store.getVisible()');
+  });
 });

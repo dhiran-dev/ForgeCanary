@@ -225,6 +225,26 @@ export class ForgeCanaryService {
     return { reset: true, resetAt: new Date().toISOString() };
   }
 
+  async returnToEmptyState(): Promise<{ case: null }> {
+    let current = this.store.get();
+    if (!current) return { case: null };
+
+    if (current.stage === 'awaiting_approval') {
+      await this.decideApproval(current.id, 'deny');
+      current = this.store.require(current.id);
+    } else if (this.activeTask || !isTerminal(current)) {
+      throw new Error(`Cannot return to empty state while case ${current.id} is ${current.stage}`);
+    }
+
+    await Promise.all([
+      reset(this.config.v1BaseUrl),
+      reset(this.config.v2BaseUrl),
+      reset(this.config.controlBaseUrl)
+    ]);
+    this.store.dismiss(current.id);
+    return { case: null };
+  }
+
   async retryApproval(caseId: string): Promise<ForgeCanaryCase> {
     await this.initialize();
     const current = this.store.require(caseId);
