@@ -85,8 +85,22 @@ export default function HumanControlSection({ view, reducedMotion }: HumanContro
             release before anything changes.
           </p>
           <div className="control-story-actions" aria-label="Release decision actions">
-            <button className="control-story-action control-story-action--primary" type="button">KEEP BLOCKED</button>
-            <button className="control-story-action control-story-action--secondary" type="button">REVIEW SAFE FIX</button>
+            <a
+              className="control-story-action control-story-action--primary"
+              href="/"
+              data-action
+              aria-label="Open the operator console and keep the release blocked"
+            >
+              KEEP BLOCKED
+            </a>
+            <a
+              className="control-story-action control-story-action--secondary"
+              href="/"
+              data-action
+              aria-label="Open the operator console to review the safe fix"
+            >
+              REVIEW SAFE FIX
+            </a>
           </div>
           <p className="control-story-production-status" aria-live="polite">
             <i aria-hidden="true" />
