@@ -47,4 +47,20 @@ describe('runway story image plates', () => {
       expect(source).toContain("onError={() => setHardwareState('error')}");
     }
   });
+
+  it('keeps the product story at root and the operator workspace at /studio', () => {
+    const entry = readFileSync(join(process.cwd(), 'ui/src/main.tsx'), 'utf8');
+    const app = readFileSync(join(process.cwd(), 'ui/src/App.tsx'), 'utf8');
+    const prototype = readFileSync(join(process.cwd(), 'ui/src/runway/ReleaseRunwayPrototype.tsx'), 'utf8');
+    const humanControl = readFileSync(join(process.cwd(), 'ui/src/runway/sections/HumanControlSection.tsx'), 'utf8');
+    const releaseProof = readFileSync(join(process.cwd(), 'ui/src/runway/sections/ReleaseProofSection.tsx'), 'utf8');
+
+    expect(entry).toContain("window.location.pathname === '/studio'");
+    expect(entry).toContain('!isStudio');
+    expect(app).toContain('href="/" ariaLabel="ForgeCanary landing page"');
+    expect(prototype).toContain('href="/" ariaLabel="ForgeCanary home"');
+    expect(prototype).toContain('className="runway-studio-link" href="/studio"');
+    expect(humanControl.match(/href="\/studio"/g)).toHaveLength(2);
+    expect(releaseProof).toContain('href="/studio" label="OPEN FORGECANARY STUDIO"');
+  });
 });

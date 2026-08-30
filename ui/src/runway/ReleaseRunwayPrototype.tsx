@@ -97,7 +97,7 @@ export default function ReleaseRunwayPrototype() {
   return (
     <div className={`runway-page runway-phase-${view.phase}`}>
       <header className="runway-nav">
-        <ForgeCanaryBrand className="runway-brand" href="/runway" ariaLabel="ForgeCanary home" />
+        <ForgeCanaryBrand className="runway-brand" href="/" ariaLabel="ForgeCanary home" />
         <div className="runway-nav-actions">
           <div
             className={`runway-connection ${servicesReady ? 'online' : ''}`}
@@ -110,7 +110,7 @@ export default function ReleaseRunwayPrototype() {
               <small className={error ? 'is-error' : ''} title={error ?? undefined}>{error ?? config?.model}</small>
             )}
           </div>
-          <a className="runway-studio-link" href="/">
+          <a className="runway-studio-link" href="/studio">
             <span>OPEN STUDIO</span>
             <i aria-hidden="true">→</i>
           </a>

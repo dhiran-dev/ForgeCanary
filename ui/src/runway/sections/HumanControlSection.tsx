@@ -87,7 +87,7 @@ export default function HumanControlSection({ view, reducedMotion, illustrative 
           <div className="control-story-actions" aria-label="Release decision actions">
             <a
               className="control-story-action control-story-action--primary"
-              href="/"
+              href="/studio"
               data-action
               aria-label="Open the operator console and keep the release blocked"
             >
@@ -95,7 +95,7 @@ export default function HumanControlSection({ view, reducedMotion, illustrative 
             </a>
             <a
               className="control-story-action control-story-action--secondary"
-              href="/"
+              href="/studio"
               data-action
               aria-label="Open the operator console to review the safe fix"
             >
