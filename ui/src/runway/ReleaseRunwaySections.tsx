@@ -28,6 +28,7 @@ export default function ReleaseRunwaySections({
       <ReleaseProofSection
         view={view}
         reducedMotion={reducedMotion}
+        illustrative={illustrative}
         receiptUrl={receiptUrl}
         trueforgeUrl={trueforgeUrl}
       />

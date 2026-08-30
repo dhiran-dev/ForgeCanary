@@ -1,9 +1,11 @@
 import type { RunwayView } from '../runway-state';
+import { deriveReleaseProofState } from './release-proof-state';
 import './release-proof-section.css';
 
 type ReleaseProofSectionProps = {
   view: RunwayView;
   reducedMotion: boolean;
+  illustrative: boolean;
   receiptUrl?: string;
   trueforgeUrl?: string;
 };
@@ -56,8 +58,13 @@ function ProofPacket({ route, duration, begin = 0, small = false }: ProofPacketP
   );
 }
 
-function ProofCheck({ className = '' }: { className?: string }) {
-  return <span className={`proof-story-check ${className}`} aria-hidden="true" />;
+function ProofCheck({ className = '', verified = true }: { className?: string; verified?: boolean }) {
+  return (
+    <span
+      className={`proof-story-check ${verified ? '' : 'proof-story-check--pending'} ${className}`}
+      aria-hidden="true"
+    />
+  );
 }
 
 type ProofActionProps = {
@@ -92,15 +99,24 @@ function ProofAction({ href, label, variant, download = false, external = false 
 export function ReleaseProofSection({
   view,
   reducedMotion,
+  illustrative,
   receiptUrl,
   trueforgeUrl
 }: ReleaseProofSectionProps) {
-  const liveJobs = Math.min(6, Math.max(view.jobsReplayed, view.repairedJobs));
-  const displayJobs = liveJobs > 0 ? liveJobs : 6;
-  const isComplete = view.phase === 'complete';
-  const sceneState = isComplete ? 'verified' : view.phase === 'repair' ? 'verifying' : 'canonical';
-  const verifiedCells = isComplete ? 6 : view.phase === 'repair' ? view.repairedJobs : 6;
-  const signalIsMoving = !reducedMotion && ['ready', 'repair', 'complete'].includes(view.phase);
+  const {
+    displayJobs,
+    verifiedCells,
+    sceneState,
+    receiptReady,
+    signalIsMoving,
+    receiptHeader,
+    lede,
+    upgradeStatus,
+    safetyStatus,
+    realityStatus,
+    gateLabel,
+    figureLabel
+  } = deriveReleaseProofState(view, illustrative, reducedMotion);
 
   return (
     <section
@@ -114,20 +130,18 @@ export function ReleaseProofSection({
         <div className="runway-story-copy proof-story-copy">
           <span className="runway-story-eyebrow">04 / RELEASE PROOF</span>
           <h2 className="runway-story-title" id="proof-story-title">Every release<br />leaves a receipt.</h2>
-          <p className="runway-story-lede">
-            The reviewed repair preserved every expected outcome and changed nothing outside scope.
-          </p>
+          <p className="runway-story-lede">{lede}</p>
 
           <div className="runway-story-panel proof-story-receipt" aria-label="Release proof receipt">
             <header>
-              <span>PROOF RECEIPT READY</span>
-              <i aria-hidden="true" />
+              <span>{receiptHeader}</span>
+              <i className={receiptReady ? 'is-ready' : ''} aria-hidden="true" />
             </header>
             <ul>
-              <li><ProofCheck /><span>{displayJobs} / 6 ORDERS CORRECT</span></li>
-              <li><ProofCheck /><span>SAME AGENT ANSWERS</span></li>
-              <li><ProofCheck /><span>INVENTORY VERIFIED</span></li>
-              <li><ProofCheck /><span>NO OUT-OF-SCOPE CHANGE</span></li>
+              <li><ProofCheck verified={receiptReady} /><span>{displayJobs} / 6 ORDERS {receiptReady ? 'CORRECT' : 'OBSERVED'}</span></li>
+              <li><ProofCheck verified={receiptReady} /><span>SAME AGENT ANSWERS</span></li>
+              <li><ProofCheck verified={receiptReady} /><span>INVENTORY VERIFIED</span></li>
+              <li><ProofCheck verified={receiptReady} /><span>NO OUT-OF-SCOPE CHANGE</span></li>
             </ul>
           </div>
 
@@ -137,7 +151,7 @@ export function ReleaseProofSection({
           </div>
         </div>
 
-        <figure className="proof-story-scene" aria-label="TrueForge execution graph with four approved specialists, six verified outcomes, and a safe-to-ship gate">
+        <figure className="proof-story-scene" aria-label={figureLabel}>
           <svg className="runway-story-conduits proof-story-conduits" viewBox="0 0 1672 941" aria-hidden="true">
             <defs>
               <path id="proof-route-current" d="M 796 195 H 842 Q 868 195 868 224 V 284 Q 868 309 895 309 H 915" />
@@ -207,7 +221,7 @@ export function ReleaseProofSection({
 
           <div className="proof-story-node proof-story-node--upgrade">
             <span className="proof-story-icon proof-story-icon--up" aria-hidden="true">↑</span>
-            <div><span>UPGRADE REPLAY</span><strong>{displayJobs} OF 6 CORRECT</strong></div>
+            <div><span>UPGRADE REPLAY</span><strong>{upgradeStatus}</strong></div>
           </div>
 
           <div className="proof-story-node proof-story-node--lead">
@@ -217,22 +231,27 @@ export function ReleaseProofSection({
 
           <div className="proof-story-node proof-story-node--safety">
             <span className="proof-story-icon proof-story-icon--shield" aria-hidden="true"><i /></span>
-            <div><span>SAFETY REVIEWER</span><strong>APPROVED</strong></div>
+            <div><span>SAFETY REVIEWER</span><strong>{safetyStatus}</strong></div>
           </div>
 
           <div className="proof-story-node proof-story-node--reality">
             <span className="proof-story-icon proof-story-icon--lock" aria-hidden="true"><i /></span>
-            <div><span>REALITY CHECKER</span><strong>INVENTORY VERIFIED</strong></div>
+            <div><span>REALITY CHECKER</span><strong>{realityStatus}</strong></div>
           </div>
 
           <div className="proof-story-cells" aria-hidden="true">
             {Array.from({ length: 6 }, (_, index) => (
-              <span className={index < verifiedCells ? 'is-verified' : 'is-pending'} key={index}><ProofCheck /><i /></span>
+              <span className={index < verifiedCells ? 'is-verified' : 'is-pending'} key={index}>
+                <ProofCheck verified={index < verifiedCells} />
+                <i />
+              </span>
             ))}
           </div>
 
-          <div className="proof-story-safe-gate">
-            <span>SAFE TO<br />SHIP</span>
+          <div className={`proof-story-safe-gate${receiptReady ? ' is-ready' : ''}`}>
+            <span>{gateLabel.split('\n').map((line, index) => (
+              <span key={line}>{index > 0 && <br />}{line}</span>
+            ))}</span>
             <i aria-hidden="true" />
           </div>
         </figure>
