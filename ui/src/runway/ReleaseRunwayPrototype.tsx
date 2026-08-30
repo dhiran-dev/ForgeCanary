@@ -9,6 +9,7 @@ import {
 import { loadCase, loadConfig, loadCurrentCase, loadHealth } from '../api';
 import type { ForgeCanaryCase, HealthState, PublicConfig } from '../types';
 import ReleaseRunwayLayeredScene from './ReleaseRunwayLayeredScene';
+import ReleaseRunwaySections from './ReleaseRunwaySections';
 import {
   activeRunwayError,
   initialRunwayErrorState,
@@ -174,6 +175,11 @@ export default function ReleaseRunwayPrototype() {
           <li className={`${view.phaseIndex >= 3 ? 'active' : ''} ${view.phase === 'complete' ? 'safe' : view.phase === 'blocked' || view.phase === 'failed' ? 'held' : ''}`}><strong>DECIDE</strong></li>
         </ol>
       </main>
+      <ReleaseRunwaySections
+        view={view}
+        reducedMotion={reducedMotion}
+        illustrative={!currentCase}
+      />
     </div>
   );
 }
