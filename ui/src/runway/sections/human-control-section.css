@@ -22,23 +22,24 @@
 }
 
 .control-story-copy .runway-story-eyebrow {
-  margin-bottom: 27px;
-  font-size: clamp(8px, 0.66vw, 11px);
-  letter-spacing: 0.118em;
+  margin-bottom: 26px;
+  font-size: 10px;
+  letter-spacing: 0.17em;
 }
 
 .control-story-copy .runway-story-title {
-  font-size: clamp(40px, 3.75vw, 64px);
-  letter-spacing: -0.035em;
-  line-height: 1.1;
+  font-size: clamp(43px, 3.2vw, 55px);
+  letter-spacing: -0.053em;
+  line-height: 0.96;
 }
 
 .control-story-copy .runway-story-lede {
   width: 100%;
-  margin-top: 20px;
+  margin-top: 10px;
   color: var(--story-silver);
-  font-size: clamp(13px, 1.12vw, 19px);
-  line-height: 1.48;
+  font-size: 17px;
+  letter-spacing: -0.012em;
+  line-height: 1.52;
 }
 
 .control-story-actions {

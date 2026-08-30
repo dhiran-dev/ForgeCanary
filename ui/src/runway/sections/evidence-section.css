@@ -87,9 +87,9 @@
   margin-bottom: 26px;
   color: var(--evidence-green);
   font-family: var(--evidence-mono);
-  font-size: clamp(13px, 1.08cqw, 18px);
+  font-size: 10px;
   font-weight: 400;
-  letter-spacing: 0.055em;
+  letter-spacing: 0.17em;
   line-height: 1;
 }
 
@@ -98,20 +98,20 @@
   margin: 0;
   color: var(--evidence-bone);
   font-family: var(--evidence-human);
-  font-size: clamp(40px, 3.12cqw, 52px);
-  font-weight: 400;
-  letter-spacing: -0.034em;
-  line-height: 1.165;
+  font-size: clamp(43px, 3.2cqw, 55px);
+  font-weight: 390;
+  letter-spacing: -0.053em;
+  line-height: 0.96;
 }
 
 .evidence-story__copy > p {
   max-width: 455px;
-  margin: 24px 0 0;
+  margin: 10px 0 0;
   color: var(--evidence-silver);
   font-family: var(--evidence-human);
-  font-size: clamp(16px, 1.34cqw, 22px);
-  font-weight: 400;
-  letter-spacing: -0.025em;
+  font-size: 17px;
+  font-weight: 390;
+  letter-spacing: -0.012em;
   line-height: 1.52;
 }
 
