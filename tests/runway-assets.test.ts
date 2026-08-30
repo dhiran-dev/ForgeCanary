@@ -73,4 +73,14 @@ describe('runway story image plates', () => {
     expect(app).not.toContain('className="retention-bar"');
     expect(app).not.toContain('Keep release summary');
   });
+
+  it('renders inspector cards only from spawned jobs and their canonical identities', () => {
+    const app = readFileSync(join(process.cwd(), 'ui/src/App.tsx'), 'utf8');
+
+    expect(app).toContain('jobs.map(job =>');
+    expect(app).toContain('<strong>{job.orderId}</strong>');
+    expect(app).toContain('<dd>{job.replayJobId}</dd>');
+    expect(app).not.toContain('const ORDER_IDS');
+    expect(app).not.toContain('jobs[index]');
+  });
 });
