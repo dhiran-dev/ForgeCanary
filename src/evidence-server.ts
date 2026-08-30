@@ -102,7 +102,7 @@ const server = createServer(async (request, response) => {
       return;
     }
     if (url.pathname === '/api/cases/current' && method === 'GET') {
-      sendJson(response, 200, { case: service.store.get() });
+      sendJson(response, 200, { case: service.store.getVisible() });
       return;
     }
     if (url.pathname === '/api/cases' && method === 'POST') {
@@ -111,6 +111,10 @@ const server = createServer(async (request, response) => {
     }
     if (url.pathname === '/api/demo/reset' && method === 'POST') {
       sendJson(response, 200, await service.resetDemo());
+      return;
+    }
+    if (url.pathname === '/api/demo/empty' && method === 'POST') {
+      sendJson(response, 200, await service.returnToEmptyState());
       return;
     }
 

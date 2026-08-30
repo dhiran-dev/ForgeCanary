@@ -87,6 +87,9 @@ const PRODUCT_LABELS: Record<string, string> = {
 };
 
 const TEST_WORKER_DWELL_MS = 260;
+const LIVE_WORKER_DWELL_MS = 520;
+const LIVE_STAGE_DWELL_MS = 650;
+const LIVE_DECISION_DWELL_MS = 900;
 
 const ACTIVE_STAGES = new Set([
   'preflight',
@@ -140,6 +143,7 @@ export class ForgeCanaryService {
   private savedAgent: SavedReplayAgent | null = null;
   private activeTask: Promise<void> | null = null;
   private decisionTask: Promise<ForgeCanaryCase> | null = null;
+  private lifecycleOperation: 'starting' | 'resetting' | 'emptying' | null = null;
 
   constructor(config = readForgeCanaryConfig()) {
     this.config = config;
@@ -162,6 +166,7 @@ export class ForgeCanaryService {
     return {
       mode: this.config.mode,
       model,
+      reasoningEffort: this.config.modelReasoningEffort,
       savedAgentId: this.savedAgent?.id,
       savedAgentName: REPLAY_AGENT_DISPLAY_NAME,
       trueforgeBaseUrl: this.config.trueforgeBaseUrl,
@@ -188,41 +193,89 @@ export class ForgeCanaryService {
   }
 
   async startCase(): Promise<ForgeCanaryCase> {
-    if (this.activeTask) throw new Error('A ForgeCanary run is already active');
-    const model = await this.initialize();
-    if (!this.savedAgent) throw new Error('ForgeCanary saved agent was not initialized');
-    const created = this.store.create({
-      mode: this.config.mode,
-      model,
-      savedAgentId: this.savedAgent.id,
-      baselineVersion: this.config.baselineVersion,
-      candidateVersion: this.config.candidateVersion
-    });
-    this.store.append(created.id, {
-      source: 'forgecanary',
-      type: 'case.created',
-      title: created.historyTitle,
-      detail: 'ForgeCanary will replay the same work against the current and proposed MCP versions.'
-    });
-    this.activeTask = this.runCase(created.id)
-      .catch(error => {
-        this.store.fail(created.id, error);
-      })
-      .finally(() => {
-        this.activeTask = null;
+    const releaseLifecycle = this.acquireLifecycleOperation('starting');
+    try {
+      if (this.activeTask) throw new Error('A ForgeCanary run is already active');
+      const model = await this.initialize();
+      if (!this.savedAgent) throw new Error('ForgeCanary saved agent was not initialized');
+      const created = this.store.create({
+        mode: this.config.mode,
+        model,
+        savedAgentId: this.savedAgent.id,
+        baselineVersion: this.config.baselineVersion,
+        candidateVersion: this.config.candidateVersion
       });
-    return this.store.require(created.id);
+      this.store.append(created.id, {
+        source: 'forgecanary',
+        type: 'case.created',
+        title: created.historyTitle,
+        detail: 'ForgeCanary will replay the same work against the current and proposed MCP versions.'
+      });
+      this.activeTask = this.runCase(created.id)
+        .catch(error => {
+          this.store.fail(created.id, error);
+        })
+        .finally(() => {
+          this.activeTask = null;
+        });
+      return this.store.require(created.id);
+    } finally {
+      releaseLifecycle();
+    }
   }
 
   async resetDemo(): Promise<Record<string, unknown>> {
-    const current = this.store.get();
-    if (!isTerminal(current)) throw new Error(`Cannot reset while case ${current?.id} is ${current?.stage}`);
-    await Promise.all([
-      reset(this.config.v1BaseUrl),
-      reset(this.config.v2BaseUrl),
-      reset(this.config.controlBaseUrl)
-    ]);
-    return { reset: true, resetAt: new Date().toISOString() };
+    const releaseLifecycle = this.acquireLifecycleOperation('resetting');
+    try {
+      const current = this.store.get();
+      if (!isTerminal(current)) throw new Error(`Cannot reset while case ${current?.id} is ${current?.stage}`);
+      await Promise.all([
+        reset(this.config.v1BaseUrl),
+        reset(this.config.v2BaseUrl),
+        reset(this.config.controlBaseUrl)
+      ]);
+      return { reset: true, resetAt: new Date().toISOString() };
+    } finally {
+      releaseLifecycle();
+    }
+  }
+
+  async returnToEmptyState(): Promise<{ case: null }> {
+    const releaseLifecycle = this.acquireLifecycleOperation('emptying');
+    try {
+      let current = this.store.get();
+      if (!current || current.dismissedAt) return { case: null };
+
+      if (current.stage === 'awaiting_approval') {
+        await this.decideApproval(current.id, 'deny');
+        current = this.store.require(current.id);
+      } else if (this.activeTask || !isTerminal(current)) {
+        throw new Error(`Cannot return to empty state while case ${current.id} is ${current.stage}`);
+      }
+
+      await Promise.all([
+        reset(this.config.v1BaseUrl),
+        reset(this.config.v2BaseUrl),
+        reset(this.config.controlBaseUrl)
+      ]);
+      this.store.dismiss(current.id);
+      return { case: null };
+    } finally {
+      releaseLifecycle();
+    }
+  }
+
+  private acquireLifecycleOperation(operation: 'starting' | 'resetting' | 'emptying'): () => void {
+    if (this.lifecycleOperation) {
+      throw new Error(`ForgeCanary lifecycle operation ${this.lifecycleOperation} is already in progress`);
+    }
+    this.lifecycleOperation = operation;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      if (this.lifecycleOperation === operation) this.lifecycleOperation = null;
+    };
   }
 
   async retryApproval(caseId: string): Promise<ForgeCanaryCase> {
@@ -244,6 +297,7 @@ export class ForgeCanaryService {
       detail: 'The denied call remains denied. The existing parent release run is continuing with a new proposal.'
     });
     try {
+      await this.presentationPause(LIVE_STAGE_DWELL_MS);
       await this.requestApproval(caseId);
       return this.store.require(caseId);
     } catch (error) {
@@ -281,9 +335,20 @@ export class ForgeCanaryService {
 
     if (decision === 'allow') {
       this.store.transition(caseId, 'applying_repair', 'TrueForge is applying the approved, scoped compatibility repair.');
+    } else {
+      this.store.update(caseId, value => {
+        value.summary = 'TrueForge is denying the adapter write and verifying zero mutation.';
+      });
+      this.store.append(caseId, {
+        source: 'forgecanary',
+        type: 'approval.denial_started',
+        title: 'Denial sent to TrueForge',
+        detail: 'The adapter write remains blocked while ForgeCanary verifies both state hashes.'
+      });
     }
 
     try {
+      if (decision === 'deny') await this.presentationPause(LIVE_DECISION_DWELL_MS);
       const stream = await this.client.sessions.createTurnStream(pending.sessionId, {
         input: [
           {
@@ -430,6 +495,7 @@ export class ForgeCanaryService {
 
     this.store.transition(caseId, 'analyzing', 'TrueForge agents are checking protocol compatibility and business outcomes.');
     await this.runAnalysis(caseId);
+    await this.presentationPause(LIVE_STAGE_DWELL_MS);
     const afterAnalysis = this.store.require(caseId);
     const failedRows = afterAnalysis.jobs.filter(row => row.candidate && !row.candidate.oracle.passed);
     if (failedRows.length === 0) {
@@ -450,7 +516,9 @@ export class ForgeCanaryService {
       title: 'Silent business regression detected',
       detail: `${hero.productLabel}: the proposed tool chose the cheaper later-expiring batch instead of the batch expiring first.`
     });
+    await this.presentationPause(LIVE_STAGE_DWELL_MS);
     this.store.transition(caseId, 'proposing_repair', 'Preparing a reversible compatibility repair for human review.');
+    await this.presentationPause(LIVE_STAGE_DWELL_MS);
     await this.requestApproval(caseId);
   }
 
@@ -506,9 +574,10 @@ export class ForgeCanaryService {
       title: `${phase === 'baseline' ? 'Current' : phase === 'candidate' ? 'Proposed' : 'Repaired'} MCP · ${orderId}`,
       detail: `${PRODUCT_LABELS[order.sku] ?? order.sku}, ${order.quantity} units`
     });
-    if (this.config.mode === 'test') {
-      await new Promise(resolve => setTimeout(resolve, TEST_WORKER_DWELL_MS));
-    }
+    await new Promise(resolve => setTimeout(
+      resolve,
+      this.config.mode === 'test' ? TEST_WORKER_DWELL_MS : LIVE_WORKER_DWELL_MS
+    ));
     const transcript = await runInventoryJob(
       this.client,
       mcpName,
@@ -723,6 +792,11 @@ export class ForgeCanaryService {
       detail: 'Adapter and candidate state hashes are byte-for-byte unchanged.'
     });
     this.buildReceipt(caseId, 'denied_zero_mutation');
+  }
+
+  private async presentationPause(durationMs: number): Promise<void> {
+    if (this.config.mode !== 'live') return;
+    await new Promise(resolve => setTimeout(resolve, durationMs));
   }
 
   private async verifyApprovalAndRepair(caseId: string): Promise<void> {

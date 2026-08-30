@@ -150,6 +150,10 @@ export class CaseStore {
     return this.current ? structuredClone(this.current) : null;
   }
 
+  getVisible(): ForgeCanaryCase | null {
+    return this.current?.dismissedAt ? null : this.get();
+  }
+
   require(caseId: string): ForgeCanaryCase {
     const current = this.current;
     if (!current || current.id !== caseId) throw new Error(`Unknown or stale case: ${caseId}`);
@@ -271,6 +275,16 @@ export class CaseStore {
     return this.get() as ForgeCanaryCase;
   }
 
+  dismiss(caseId: string): void {
+    const current = this.requireMutable(caseId);
+    if (!TERMINAL_STAGES.has(current.stage)) {
+      throw new Error(`Cannot dismiss case ${caseId} while it is ${current.stage}`);
+    }
+    current.dismissedAt = new Date().toISOString();
+    current.updatedAt = current.dismissedAt;
+    this.persist();
+  }
+
   subscribe(caseId: string, listener: (event: CaseTraceEvent) => void): () => void {
     this.require(caseId);
     this.emitter.on(caseId, listener);
@@ -279,6 +293,7 @@ export class CaseStore {
 
   private requireMutable(caseId: string): ForgeCanaryCase {
     if (!this.current || this.current.id !== caseId) throw new Error(`Unknown or stale case: ${caseId}`);
+    if (this.current.dismissedAt) throw new Error(`Case ${caseId} was dismissed and is read-only`);
     return this.current;
   }
 
@@ -289,5 +304,13 @@ export class CaseStore {
 
 export function isCaseConflict(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return message.includes('already running') || message.includes('Unknown or stale') || message.includes('Invalid case');
+  return (
+    message.includes('already running') ||
+    message.includes('Unknown or stale') ||
+    message.includes('Invalid case') ||
+    message.includes('Cannot dismiss case') ||
+    message.includes('Cannot return to empty state') ||
+    message.includes('lifecycle operation') ||
+    message.includes('was dismissed and is read-only')
+  );
 }

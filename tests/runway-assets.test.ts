@@ -83,4 +83,33 @@ describe('runway story image plates', () => {
     expect(app).not.toContain('const ORDER_IDS');
     expect(app).not.toContain('jobs[index]');
   });
+
+  it('has a safe persistent empty state and compact Studio controls', () => {
+    const app = readFileSync(join(process.cwd(), 'ui/src/App.tsx'), 'utf8');
+    const server = readFileSync(join(process.cwd(), 'src/evidence-server.ts'), 'utf8');
+
+    expect(app).toContain('className="studio-topbar"');
+    expect(app).toContain('<span>Return to empty</span>');
+    expect(app).toContain('!currentCase ? <EmptyWorkbench');
+    expect(app).toContain('refreshGeneration.current');
+    expect(app).toContain("config?.reasoningEffort ?? 'low'");
+    expect(server).toContain("url.pathname === '/api/demo/empty'");
+    expect(server).toContain('service.store.getVisible()');
+  });
+
+  it('keeps real replay and approval progress visible instead of collapsing to final results', () => {
+    const app = readFileSync(join(process.cwd(), 'ui/src/App.tsx'), 'utf8');
+    const service = readFileSync(join(process.cwd(), 'src/forgecanary-service.ts'), 'utf8');
+    const styles = readFileSync(join(process.cwd(), 'ui/src/styles.css'), 'utf8');
+
+    expect(app).toContain("type PendingAction = 'starting' | 'returning' | 'retrying' | 'denying' | 'allowing' | null");
+    expect(app).toContain('if (refreshTimer.current !== null) return');
+    expect(app).toContain('if (generation === refreshGeneration.current) setError(String(caught))');
+    expect(app).toContain("pendingAction === 'denying' ? 'Denying & verifying…'");
+    expect(app).toContain("anyWorkerWorking ? 'Processing'");
+    expect(service).toContain('const LIVE_WORKER_DWELL_MS = 520');
+    expect(service).toContain("type: 'approval.denial_started'");
+    expect(styles).toContain('@keyframes operationSpin');
+    expect(styles).toContain('@media (prefers-reduced-motion: reduce)');
+  });
 });

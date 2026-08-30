@@ -91,6 +91,7 @@ export interface ForgeCanaryCase {
   finalVerdict?: 'blocked' | 'denied_zero_mutation' | 'safe_to_ship';
   createdAt: string;
   updatedAt: string;
+  dismissedAt?: string;
   sequence: number;
   summary: string;
   schema?: { v1Hash: string; v2Hash: string; equal: boolean };
@@ -129,6 +130,7 @@ export interface ForgeCanaryCase {
 export interface PublicConfig {
   mode: 'live' | 'test';
   model: string;
+  reasoningEffort?: string;
   savedAgentId?: string;
   savedAgentName?: string;
   trueforgeBaseUrl: string;
