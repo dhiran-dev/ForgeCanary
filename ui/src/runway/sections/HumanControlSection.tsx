@@ -1,9 +1,11 @@
 import type { RunwayView } from '../runway-state';
+import { deriveHumanControlState } from './human-control-state';
 import './human-control-section.css';
 
 type HumanControlSectionProps = {
   view: RunwayView;
   reducedMotion: boolean;
+  illustrative: boolean;
 };
 
 type TubeProps = {
@@ -58,20 +60,19 @@ function ScreenCheck() {
   return <span className="control-story-screen-check" aria-hidden="true" />;
 }
 
-export default function HumanControlSection({ view, reducedMotion }: HumanControlSectionProps) {
-  const mismatchKnown = view.changesFound > 0 || ['compare', 'blocked', 'failed', 'repair', 'complete'].includes(view.phase);
-  const gateHeld = view.phase === 'blocked' || view.phase === 'failed' || view.needsOperator;
-  const signalIsMoving = !reducedMotion && view.phase !== 'complete';
-  const mismatchIsMoving = signalIsMoving && ['ready', 'compare', 'blocked', 'failed'].includes(view.phase);
-  const status = gateHeld
-    ? 'RELEASE HELD / AWAITING OPERATOR'
-    : mismatchKnown
-      ? 'CHANGE CAUGHT BEFORE PRODUCTION'
-      : 'CANONICAL HOLD / NO CHANGE IN PRODUCTION';
+export default function HumanControlSection({ view, reducedMotion, illustrative }: HumanControlSectionProps) {
+  const {
+    mismatchKnown,
+    signalIsMoving,
+    mismatchIsMoving,
+    status,
+    lede,
+    gateLabel
+  } = deriveHumanControlState(view, illustrative, reducedMotion);
 
   return (
     <section
-      className={`runway-story-section control-story control-story--${view.phase}${reducedMotion ? ' control-story--reduced' : ''}`}
+      className={`runway-story-section control-story control-story--${view.phase} ${mismatchKnown ? 'control-story--mismatch' : 'control-story--clean'}${reducedMotion ? ' control-story--reduced' : ''}`}
       id="human-control"
       aria-labelledby="control-story-title"
       data-phase={view.phase}
@@ -80,10 +81,7 @@ export default function HumanControlSection({ view, reducedMotion }: HumanContro
         <div className="runway-story-copy control-story-copy">
           <span className="runway-story-eyebrow">03 / HUMAN RELEASE CONTROL</span>
           <h2 className="runway-story-title" id="control-story-title">Nothing ships<br />until you decide.</h2>
-          <p className="runway-story-lede">
-            The upgrade reserved the same four units, but chose later-expiring stock. ForgeCanary holds the
-            release before anything changes.
-          </p>
+          <p className="runway-story-lede">{lede}</p>
           <div className="control-story-actions" aria-label="Release decision actions">
             <a
               className="control-story-action control-story-action--primary"
@@ -102,11 +100,11 @@ export default function HumanControlSection({ view, reducedMotion }: HumanContro
               REVIEW SAFE FIX
             </a>
           </div>
-          <p className="control-story-production-status" aria-live="polite">
+          <p className="control-story-production-status">
             <i aria-hidden="true" />
             <span>NO CHANGE HAS REACHED PRODUCTION</span>
           </p>
-          <span className="control-story-live-state">{status}</span>
+          <span className="control-story-live-state" aria-live="polite" aria-atomic="true">{status}</span>
         </div>
 
         <figure className="control-story-scene" aria-label="Current and upgrade outcomes held at a closed human-controlled release gate">
@@ -172,7 +170,7 @@ export default function HumanControlSection({ view, reducedMotion }: HumanContro
             <i className="control-story-led" aria-hidden="true" />
           </div>
 
-          <div className="control-story-screen control-story-screen--upgrade">
+          <div className={`control-story-screen control-story-screen--upgrade${mismatchKnown ? '' : ' control-story-screen--muted'}`}>
             <span>UPGRADE</span>
             <strong>RESERVED 4 UNITS</strong>
             <b>EXP DEC 01</b>
@@ -181,8 +179,8 @@ export default function HumanControlSection({ view, reducedMotion }: HumanContro
           </div>
 
           <div className="control-story-screen control-story-screen--gate">
-            <span>DECISION REQUIRED</span>
-            <i className="control-story-led control-story-led--coral" aria-hidden="true" />
+            <span>{gateLabel}</span>
+            <i className={`control-story-led${mismatchKnown ? ' control-story-led--coral' : ''}`} aria-hidden="true" />
           </div>
         </figure>
       </div>

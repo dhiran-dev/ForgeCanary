@@ -19,7 +19,7 @@ export default function ReleaseRunwaySections({
     <div className="runway-story" aria-label="How ForgeCanary checks a release">
       <ReplaySection view={view} reducedMotion={reducedMotion} illustrative={illustrative} />
       <EvidenceSection view={view} reducedMotion={reducedMotion} />
-      <HumanControlSection view={view} reducedMotion={reducedMotion} />
+      <HumanControlSection view={view} reducedMotion={reducedMotion} illustrative={illustrative} />
     </div>
   );
 }

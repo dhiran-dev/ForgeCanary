@@ -136,6 +136,9 @@
 .control-story-tube--coral .control-story-tube-channel { stroke: rgb(126 29 42 / 0.7); }
 .control-story-tube--coral .control-story-tube-signal { stroke: #ff6285; }
 
+.control-story--clean .control-story-tube--coral { opacity: 0.16; }
+.control-story--clean .control-story-signal--coral { opacity: 0.16; }
+
 .control-story--current .control-story-tube--coral,
 .control-story--replay .control-story-tube--coral,
 .control-story--repair .control-story-tube--coral,
@@ -232,6 +235,12 @@
 .control-story-led--coral {
   background: #ff6285;
   box-shadow: 0 0 8px rgb(255 98 133 / 0.92);
+}
+
+.control-story-screen--muted { color: #818284; }
+.control-story-screen--muted .control-story-led {
+  background: #5d5e61;
+  box-shadow: none;
 }
 
 .control-story-screen-check {
