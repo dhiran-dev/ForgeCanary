@@ -44,18 +44,18 @@
   width: min(570px, 34vw);
   position: absolute;
   z-index: 6;
-  top: 67px;
-  left: clamp(42px, 3vw, 58px);
+  top: 130px;
+  left: clamp(28px, 1.9vw, 32px);
 }
 
 .replay-story__eyebrow {
   display: block;
-  margin-bottom: 32px;
+  margin-bottom: 48px;
   color: var(--replay-green);
   font-family: var(--runway-font-system);
   font-size: 10px;
   font-weight: 400;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.17em;
   line-height: 1;
 }
 
@@ -63,20 +63,20 @@
   max-width: 570px;
   margin: 0;
   color: var(--replay-bone);
-  font-size: clamp(44px, 2.95vw, 50px);
-  font-weight: 400;
-  letter-spacing: -0.005em;
-  line-height: 1.08;
+  font-size: clamp(43px, 3.2vw, 55px);
+  font-weight: 390;
+  letter-spacing: -0.053em;
+  line-height: 0.96;
 }
 
 .replay-story__copy > p {
-  max-width: 420px;
-  margin: 27px 0 0;
+  max-width: 390px;
+  margin: 30px 0 0;
   color: var(--replay-steel);
   font-size: 17px;
-  font-weight: 400;
-  letter-spacing: -0.003em;
-  line-height: 1.62;
+  font-weight: 390;
+  letter-spacing: -0.012em;
+  line-height: 1.52;
 }
 
 .replay-story__live {
@@ -85,7 +85,7 @@
   display: grid;
   align-content: center;
   gap: 21px;
-  margin-top: 40px;
+  margin-top: 88px;
   padding: 28px 30px;
   border: 1px solid var(--replay-line);
   border-radius: 1px;
@@ -120,6 +120,8 @@
   top: 33px;
   right: 10px;
   margin: 0;
+  transform: scale(0.86);
+  transform-origin: 68% 44%;
 }
 
 .replay-story__hardware,
@@ -156,14 +158,14 @@
 
 .replay-story__conduit-shell {
   stroke: #1b211f;
-  stroke-width: 18;
+  stroke-width: 20;
   filter: drop-shadow(0 2px 2px rgb(0 0 0 / 0.84));
 }
 
 .replay-story__conduit-glass {
   stroke: #75807b;
-  stroke-width: 11;
-  opacity: 0.72;
+  stroke-width: 12;
+  opacity: 0.82;
 }
 
 .replay-story__conduit-void {
@@ -173,7 +175,7 @@
 
 .replay-story__conduit-signal {
   stroke: var(--replay-green);
-  stroke-width: 1.7;
+  stroke-width: 2.25;
   opacity: 0.78;
   filter: url(#replay-story-green-glow);
 }
@@ -183,6 +185,7 @@
 .replay-story__packet {
   fill: #74ffd0;
   filter: url(#replay-story-green-glow);
+  shape-rendering: crispEdges;
 }
 
 .replay-story__packet--coral {
@@ -456,6 +459,7 @@
     top: 390px;
     right: 50%;
     transform: translateX(50%);
+    transform-origin: center;
   }
   .replay-story__agent-label { min-width: min(160px, 40vw); padding: 7px 8px 6px; }
   .replay-story__agent-label--safety,

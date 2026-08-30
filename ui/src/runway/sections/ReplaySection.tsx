@@ -32,19 +32,18 @@ function ConduitPath({ id, d, moving, reverse = false }: ConduitPathProps) {
       <path className="replay-story__conduit-void" d={d} />
       <path className="replay-story__conduit-signal" d={d} />
       <path id={id} className="replay-story__motion-guide" d={d} />
-      {moving && [0, 1, 2].map(packet => (
+      {moving && [0, 1, 2, 3].map(packet => (
         <rect
           className="replay-story__packet"
           key={packet}
-          x="-9"
-          y="-2"
-          width="18"
-          height="4"
-          rx="1"
+          x="-10"
+          y="-1.5"
+          width="20"
+          height="3"
         >
           <animateMotion
-            begin={`${-packet * 0.47}s`}
-            dur="1.42s"
+            begin={`${-packet * 0.22}s`}
+            dur="1.05s"
             path={d}
             repeatCount="indefinite"
             rotate={reverse ? 'auto-reverse' : 'auto'}
@@ -104,7 +103,7 @@ export default function ReplaySection({ view, reducedMotion, illustrative }: Rep
           >
             <defs>
               <filter id="replay-story-green-glow" x="-60%" y="-60%" width="220%" height="220%">
-                <feGaussianBlur stdDeviation="4.5" result="blur" />
+                <feGaussianBlur stdDeviation="2.2" result="blur" />
                 <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
               </filter>
             </defs>
@@ -124,8 +123,8 @@ export default function ReplaySection({ view, reducedMotion, illustrative }: Rep
                 <path className="replay-story__conduit-void" d={`M ${x} 508 V 551`} />
                 <path className="replay-story__conduit-signal" d={`M ${x} 508 V 551`} />
                 {replayMoving && (
-                  <rect className="replay-story__packet" x={x - 7} y="510" width="14" height="4" rx="1">
-                    <animate attributeName="y" begin={`${-index * 0.19}s`} dur="0.78s" values="510;545" repeatCount="indefinite" />
+                  <rect className="replay-story__packet" x={x - 7} y="510" width="14" height="3">
+                    <animate attributeName="y" begin={`${-index * 0.16}s`} dur="0.64s" values="510;545" repeatCount="indefinite" />
                   </rect>
                 )}
               </g>
@@ -155,7 +154,7 @@ export default function ReplaySection({ view, reducedMotion, illustrative }: Rep
                 ))}
               </mask>
               <filter id="replay-story-coral-glow" x="-60%" y="-60%" width="220%" height="220%">
-                <feGaussianBlur stdDeviation="4" result="blur" />
+                <feGaussianBlur stdDeviation="2.2" result="blur" />
                 <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
               </filter>
             </defs>
@@ -165,10 +164,10 @@ export default function ReplaySection({ view, reducedMotion, illustrative }: Rep
               <path className="replay-story__conduit-void" d="M 593 684 H 1348" />
               <path className="replay-story__conduit-signal" d="M 593 684 H 1348" />
               {replayMoving && [0, 1, 2, 3].map(packet => (
-                <rect className="replay-story__packet" key={packet} x="-10" y="-2" width="20" height="4" rx="1">
+                <rect className="replay-story__packet" key={packet} x="-10" y="-1.5" width="20" height="3">
                   <animateMotion
-                    begin={`${-packet * 0.31}s`}
-                    dur="1.18s"
+                    begin={`${-packet * 0.22}s`}
+                    dur="1.02s"
                     path="M 593 684 H 1348"
                     repeatCount="indefinite"
                     rotate="auto"
@@ -180,7 +179,7 @@ export default function ReplaySection({ view, reducedMotion, illustrative }: Rep
               <path className="replay-story__mismatch-shell" d="M 1342 684 H 1372 Q 1395 684 1395 712 V 813 H 1415" />
               <path className="replay-story__mismatch-signal" d="M 1342 684 H 1372 Q 1395 684 1395 712 V 813 H 1415" />
               {mismatchMoving && (
-                <rect className="replay-story__packet replay-story__packet--coral" x="-9" y="-2" width="18" height="4" rx="1">
+                <rect className="replay-story__packet replay-story__packet--coral" x="-9" y="-1.5" width="18" height="3">
                   <animateMotion
                     dur="1.05s"
                     path="M 1342 684 H 1372 Q 1395 684 1395 712 V 813 H 1415"

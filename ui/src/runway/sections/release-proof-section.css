@@ -34,28 +34,29 @@
 }
 
 .proof-story-copy .runway-story-eyebrow {
-  margin-bottom: 24px;
-  font-size: clamp(8px, 0.66vw, 11px);
-  letter-spacing: 0.118em;
+  margin-bottom: 44px;
+  font-size: 10px;
+  letter-spacing: 0.17em;
 }
 
 .proof-story-copy .runway-story-title {
-  font-size: clamp(40px, 3.75vw, 64px);
-  letter-spacing: -0.035em;
-  line-height: 1.08;
+  font-size: clamp(43px, 3.2vw, 55px);
+  letter-spacing: -0.053em;
+  line-height: 0.96;
 }
 
 .proof-story-copy .runway-story-lede {
-  max-width: 430px;
-  margin-top: 22px;
+  max-width: 320px;
+  margin-top: 42px;
   color: #bababb;
-  font-size: clamp(13px, 1.1vw, 18px);
-  line-height: 1.48;
+  font-size: 17px;
+  letter-spacing: -0.012em;
+  line-height: 1.52;
 }
 
 .proof-story-receipt {
-  width: 84%;
-  margin-top: 26px;
+  width: 88.3%;
+  margin-top: 30px;
   padding: 11px 30px 26px;
   background: linear-gradient(145deg, #171a1d, #0f1214);
 }
@@ -93,7 +94,7 @@
 }
 
 .proof-story-receipt li {
-  min-height: clamp(43px, 3.35vw, 54px);
+  min-height: clamp(43px, 3.1vw, 50px);
   display: flex;
   align-items: center;
   gap: 16px;
@@ -133,7 +134,7 @@
 .proof-story-check--pending::after { display: none; }
 
 .proof-story-actions {
-  width: 84%;
+  width: 88.3%;
   display: grid;
   gap: 15px;
   margin-top: 18px;
@@ -181,6 +182,8 @@
   z-index: 1;
   margin: 0;
   container-type: inline-size;
+  transform: scale(0.86);
+  transform-origin: 68% 48%;
 }
 
 .proof-story-conduits { z-index: 1; }
@@ -192,13 +195,13 @@
   stroke-linejoin: round;
 }
 
-.proof-story-tube-occlusion { stroke: #010201; stroke-width: 40; }
-.proof-story-tube-shell { stroke: #171b19; stroke-width: 33; }
-.proof-story-tube-edge { stroke: rgb(186 186 187 / 0.68); stroke-width: 25; }
-.proof-story-tube-glass { stroke: rgb(3 11 9 / 0.96); stroke-width: 20; }
-.proof-story-tube-channel { stroke: rgb(0 84 65 / 0.72); stroke-width: 11; }
-.proof-story-tube-signal { stroke: #00d892; stroke-width: 3.1; }
-.proof-story-tube-specular { stroke: rgb(222 222 222 / 0.36); stroke-width: 1.1; transform: translateY(-4.5px); }
+.proof-story-tube-occlusion { stroke: #010201; stroke-width: 28; }
+.proof-story-tube-shell { stroke: #171b19; stroke-width: 22; }
+.proof-story-tube-edge { stroke: rgb(186 186 187 / 0.6); stroke-width: 16; }
+.proof-story-tube-glass { stroke: rgb(3 11 9 / 0.96); stroke-width: 12; }
+.proof-story-tube-channel { stroke: rgb(0 84 65 / 0.62); stroke-width: 6; }
+.proof-story-tube-signal { stroke: #00d892; stroke-width: 2; }
+.proof-story-tube-specular { stroke: rgb(222 222 222 / 0.32); stroke-width: 1; transform: translateY(-3px); }
 
 .proof-story-tube--dim { opacity: 0.38; }
 
@@ -210,7 +213,8 @@
 
 .proof-story-packet {
   fill: #00d892;
-  filter: drop-shadow(0 0 5px rgb(0 216 146 / 0.9));
+  filter: drop-shadow(0 0 2px rgb(0 216 146 / 0.86));
+  shape-rendering: crispEdges;
 }
 
 .proof-story-node {
@@ -453,5 +457,6 @@
     inset: auto;
     aspect-ratio: 1672 / 941;
     margin: 36px 0 0 -34%;
+    transform: none;
   }
 }

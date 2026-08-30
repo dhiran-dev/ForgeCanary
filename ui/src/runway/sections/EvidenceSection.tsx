@@ -44,7 +44,7 @@ function PacketRail({ count, duration, pathId, signal }: PacketRailProps) {
   return (
     <g className={`evidence-story__packets evidence-story__packets--${signal}`}>
       {Array.from({ length: count }, (_, index) => (
-        <rect key={`${pathId}-${index}`} width="22" height="4" x="-11" y="-2" rx="1">
+        <rect key={`${pathId}-${index}`} width="12" height="2.5" x="-6" y="-1.25">
           <animateMotion
             begin={`${-(duration / count) * index}s`}
             dur={`${duration}s`}
@@ -153,11 +153,11 @@ export default function EvidenceSection({ view, reducedMotion }: EvidenceSection
                 <stop offset="1" stopColor="#69716e" />
               </linearGradient>
               <filter id="evidence-green-glow" x="-60%" y="-60%" width="220%" height="220%">
-                <feGaussianBlur stdDeviation="4" result="blur" />
+                <feGaussianBlur stdDeviation="2.2" result="blur" />
                 <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
               </filter>
               <filter id="evidence-coral-glow" x="-80%" y="-80%" width="260%" height="260%">
-                <feGaussianBlur stdDeviation="5" result="blur" />
+                <feGaussianBlur stdDeviation="2.4" result="blur" />
                 <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
               </filter>
             </defs>
@@ -180,11 +180,11 @@ export default function EvidenceSection({ view, reducedMotion }: EvidenceSection
 
             {!reducedMotion && (
               <>
-                <PacketRail count={4} duration={0.78} pathId="evidence-top-left" signal="green" />
-                <PacketRail count={4} duration={0.78} pathId="evidence-top-right" signal="green" />
-                <PacketRail count={5} duration={0.9} pathId="evidence-bottom-left" signal="green" />
-                <PacketRail count={5} duration={0.9} pathId="evidence-bottom-right" signal="green" />
-                <PacketRail count={3} duration={0.62} pathId="evidence-coral-branch" signal="coral" />
+                <PacketRail count={7} duration={0.72} pathId="evidence-top-left" signal="green" />
+                <PacketRail count={7} duration={0.72} pathId="evidence-top-right" signal="green" />
+                <PacketRail count={10} duration={0.82} pathId="evidence-bottom-left" signal="green" />
+                <PacketRail count={10} duration={0.82} pathId="evidence-bottom-right" signal="green" />
+                <PacketRail count={4} duration={0.55} pathId="evidence-coral-branch" signal="coral" />
               </>
             )}
 

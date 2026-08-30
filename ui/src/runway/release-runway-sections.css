@@ -61,11 +61,11 @@
 
 .runway-story-eyebrow {
   display: block;
-  margin: 0 0 28px;
+  margin: 0 0 26px;
   color: var(--story-green);
   font-size: 10px;
-  letter-spacing: 0.064em;
-  line-height: 1.6;
+  letter-spacing: 0.17em;
+  line-height: 1;
   text-transform: uppercase;
 }
 
@@ -74,20 +74,21 @@
   margin: 0;
   color: var(--story-bone);
   font-family: var(--runway-font-human);
-  font-size: clamp(46px, 4.3vw, 65px);
-  font-weight: 400;
-  letter-spacing: -0.005em;
-  line-height: 1.08;
+  font-size: clamp(43px, 3.2vw, 55px);
+  font-weight: 390;
+  letter-spacing: -0.053em;
+  line-height: 0.96;
   text-wrap: balance;
 }
 
 .runway-story-lede {
   max-width: 520px;
-  margin: 28px 0 0;
+  margin: 10px 0 0;
   color: var(--story-silver);
-  font-size: clamp(15px, 1.15vw, 18px);
-  font-weight: 400;
-  line-height: 1.5;
+  font-size: 17px;
+  font-weight: 390;
+  letter-spacing: -0.012em;
+  line-height: 1.52;
   text-wrap: pretty;
 }
 

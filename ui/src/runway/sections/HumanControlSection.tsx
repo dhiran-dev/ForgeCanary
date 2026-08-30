@@ -38,10 +38,10 @@ function Packet({ route, tone = 'green', duration, begin = 0 }: PacketProps) {
   return (
     <rect
       className={`control-story-packet control-story-packet--${tone}`}
-      x="-13"
-      y="-2.5"
-      width="26"
-      height="5"
+      x="-9"
+      y="-1.5"
+      width="18"
+      height="3"
     >
       <animateMotion
         dur={`${duration}s`}
@@ -125,14 +125,14 @@ export default function HumanControlSection({ view, reducedMotion, illustrative 
 
             {signalIsMoving && (
               <g className="control-story-packets">
-                <Packet route="#control-route-request-current" duration={1.18} />
-                <Packet route="#control-route-request-current" duration={1.18} begin={-0.59} />
-                <Packet route="#control-route-current-gate" duration={1.08} begin={-0.2} />
-                <Packet route="#control-route-current-gate" duration={1.08} begin={-0.74} />
+                <Packet route="#control-route-request-current" duration={0.92} />
+                <Packet route="#control-route-request-current" duration={0.92} begin={-0.46} />
+                <Packet route="#control-route-current-gate" duration={0.82} begin={-0.2} />
+                <Packet route="#control-route-current-gate" duration={0.82} begin={-0.61} />
                 {mismatchIsMoving && (
                   <>
-                    <Packet route="#control-route-request-upgrade" tone="coral" duration={1.18} begin={-0.3} />
-                    <Packet route="#control-route-upgrade-gate" tone="coral" duration={1.08} begin={-0.48} />
+                    <Packet route="#control-route-request-upgrade" tone="coral" duration={0.92} begin={-0.3} />
+                    <Packet route="#control-route-upgrade-gate" tone="coral" duration={0.82} begin={-0.41} />
                   </>
                 )}
               </g>

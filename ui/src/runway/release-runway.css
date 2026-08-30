@@ -1,4 +1,6 @@
 .runway-page {
+  --runway-font-human: "Archivo Variable", sans-serif;
+  --runway-font-system: var(--font-mono-face), monospace;
   --runway-void: #020403;
   --runway-carbon: #080c0a;
   --runway-line: #202925;
