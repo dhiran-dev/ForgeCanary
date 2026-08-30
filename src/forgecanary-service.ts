@@ -87,6 +87,9 @@ const PRODUCT_LABELS: Record<string, string> = {
 };
 
 const TEST_WORKER_DWELL_MS = 260;
+const LIVE_WORKER_DWELL_MS = 520;
+const LIVE_STAGE_DWELL_MS = 650;
+const LIVE_DECISION_DWELL_MS = 900;
 
 const ACTIVE_STAGES = new Set([
   'preflight',
@@ -294,6 +297,7 @@ export class ForgeCanaryService {
       detail: 'The denied call remains denied. The existing parent release run is continuing with a new proposal.'
     });
     try {
+      await this.presentationPause(LIVE_STAGE_DWELL_MS);
       await this.requestApproval(caseId);
       return this.store.require(caseId);
     } catch (error) {
@@ -331,9 +335,20 @@ export class ForgeCanaryService {
 
     if (decision === 'allow') {
       this.store.transition(caseId, 'applying_repair', 'TrueForge is applying the approved, scoped compatibility repair.');
+    } else {
+      this.store.update(caseId, value => {
+        value.summary = 'TrueForge is denying the adapter write and verifying zero mutation.';
+      });
+      this.store.append(caseId, {
+        source: 'forgecanary',
+        type: 'approval.denial_started',
+        title: 'Denial sent to TrueForge',
+        detail: 'The adapter write remains blocked while ForgeCanary verifies both state hashes.'
+      });
     }
 
     try {
+      if (decision === 'deny') await this.presentationPause(LIVE_DECISION_DWELL_MS);
       const stream = await this.client.sessions.createTurnStream(pending.sessionId, {
         input: [
           {
@@ -480,6 +495,7 @@ export class ForgeCanaryService {
 
     this.store.transition(caseId, 'analyzing', 'TrueForge agents are checking protocol compatibility and business outcomes.');
     await this.runAnalysis(caseId);
+    await this.presentationPause(LIVE_STAGE_DWELL_MS);
     const afterAnalysis = this.store.require(caseId);
     const failedRows = afterAnalysis.jobs.filter(row => row.candidate && !row.candidate.oracle.passed);
     if (failedRows.length === 0) {
@@ -500,7 +516,9 @@ export class ForgeCanaryService {
       title: 'Silent business regression detected',
       detail: `${hero.productLabel}: the proposed tool chose the cheaper later-expiring batch instead of the batch expiring first.`
     });
+    await this.presentationPause(LIVE_STAGE_DWELL_MS);
     this.store.transition(caseId, 'proposing_repair', 'Preparing a reversible compatibility repair for human review.');
+    await this.presentationPause(LIVE_STAGE_DWELL_MS);
     await this.requestApproval(caseId);
   }
 
@@ -556,9 +574,10 @@ export class ForgeCanaryService {
       title: `${phase === 'baseline' ? 'Current' : phase === 'candidate' ? 'Proposed' : 'Repaired'} MCP · ${orderId}`,
       detail: `${PRODUCT_LABELS[order.sku] ?? order.sku}, ${order.quantity} units`
     });
-    if (this.config.mode === 'test') {
-      await new Promise(resolve => setTimeout(resolve, TEST_WORKER_DWELL_MS));
-    }
+    await new Promise(resolve => setTimeout(
+      resolve,
+      this.config.mode === 'test' ? TEST_WORKER_DWELL_MS : LIVE_WORKER_DWELL_MS
+    ));
     const transcript = await runInventoryJob(
       this.client,
       mcpName,
@@ -773,6 +792,11 @@ export class ForgeCanaryService {
       detail: 'Adapter and candidate state hashes are byte-for-byte unchanged.'
     });
     this.buildReceipt(caseId, 'denied_zero_mutation');
+  }
+
+  private async presentationPause(durationMs: number): Promise<void> {
+    if (this.config.mode !== 'live') return;
+    await new Promise(resolve => setTimeout(resolve, durationMs));
   }
 
   private async verifyApprovalAndRepair(caseId: string): Promise<void> {

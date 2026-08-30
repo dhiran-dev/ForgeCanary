@@ -156,6 +156,11 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 .activity-log li { display: grid; grid-template-columns: 55px 8px minmax(0, 1fr); gap: 7px; padding: 9px 0; border-bottom: 1px solid #343b34; }.activity-log time { color: #737c72; font-family: var(--mono); font-size: 6px; }.activity-log strong, .activity-log small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.activity-log strong { font-size: 8px; font-weight: 540; }.activity-log small { margin-top: 2px; color: #737c72; font-size: 7px; }.activity-log .empty-log { display: block; color: #737c72; font-size: 9px; }
 .scope-card { padding: 13px; border: 1px solid #4a5348; background: #2b302b; }.scope-card > strong { display: block; margin-top: 5px; font-size: 12px; }.scope-card dl { margin: 13px 0 0; }.scope-card dl > div { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid #414941; font-size: 8px; }.scope-card dt { color: #899187; }.scope-card dd { margin: 0; color: #dfe4da; }
 .approval-actions { display: grid; gap: 8px; margin-top: 13px; }.approval-actions .secondary { border-color: #5c655a; background: transparent; color: #dfe4da; }.approval-actions .primary { background: var(--acid); color: #18200f; }
+.operation-progress { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 10px; margin: 12px 0; padding: 10px; border: 1px solid #31463e; background: rgb(0 216 146 / .055); animation: panelIn 180ms var(--ease-out) both; }
+.operation-progress > span:last-child { min-width: 0; display: grid; gap: 3px; }
+.operation-progress strong { color: #e8f3ed; font-size: 9px; font-weight: 600; }
+.operation-progress small { color: #90a099; font-size: 8px; line-height: 1.4; }
+.operation-spinner { width: 15px; height: 15px; display: block; border: 2px solid rgb(0 216 146 / .2); border-top-color: var(--green); border-radius: 50%; animation: operationSpin 800ms linear infinite; }
 .panel-note { display: block; margin-top: 10px; color: #778175; font-size: 7px; text-align: center; }
 .verdict-mark { width: 54px; height: 54px; display: grid; place-items: center; margin-top: 28px; border: 1px solid #729261; border-radius: 50%; background: #30442b; color: var(--acid); font-size: 25px; }
 .hash-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid #3a413a; }.hash-row span { color: #788176; font-family: var(--mono); font-size: 6px; }.hash-row code { color: #c9d0c4; font-size: 8px; }.proof-panel > .button { width: 100%; margin-top: 16px; background: var(--acid); color: #17200e; }
@@ -183,6 +188,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
 @keyframes panelIn { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: scale(1); } }
 @keyframes drawerIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes statusPulse { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
+@keyframes operationSpin { to { transform: rotate(360deg); } }
 @keyframes workSweep { to { transform: translateX(100%); } }
 @keyframes packetA { 0% { opacity: 0; transform: translate(250px, 290px); } 12% { opacity: 1; } 55% { transform: translate(590px, 290px); } 70% { transform: translate(625px, 190px); } 100% { opacity: 0; transform: translate(700px, 190px); } }
 @keyframes packetB { 0% { opacity: 0; transform: translate(500px, 290px); } 15% { opacity: 1; } 55% { transform: translate(625px, 290px); } 80% { transform: translate(625px, 415px); } 100% { opacity: 0; transform: translate(700px, 415px); } }
@@ -193,6 +199,8 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px soli
   .worker-module, .context-panel, .inspector-grid { animation: reducedFade 120ms linear both; transform: none; }
   .packet, .work-pulse { display: none; }
   .status-dot.is-running { animation: statusPulse 1.4s linear infinite; }
+  .operation-progress { animation: reducedFade 120ms linear both; }
+  .operation-spinner { animation: none; border-color: var(--green); opacity: .7; }
 }
 
 /* Approved Variant F: near-black physical workbench, state color only. */
@@ -603,6 +611,7 @@ body, .forge-shell { background: var(--paper); }
   background: #0d1216;
   font-size: 6px;
 }
+.machine-workbench .worker-count.is-processing { display: inline-flex; align-items: center; gap: 7px; border-color: rgb(0 216 146 / .42); color: var(--green); }
 
 .machine-workbench .worker-stack {
   gap: 4px;

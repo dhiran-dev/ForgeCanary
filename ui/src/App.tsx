@@ -8,6 +8,7 @@ import type { CaseJobRow, CaseStage, ForgeCanaryCase, HealthState, PublicConfig 
 
 const ACTIVE_STAGES = new Set<CaseStage>(['preflight', 'replaying_baseline', 'replaying_candidate', 'analyzing', 'regression_detected', 'proposing_repair', 'awaiting_approval', 'applying_repair', 'verifying_repair']);
 const PHASES = ['Setup', 'Replay', 'Compare', 'Decide', 'Proof'] as const;
+type PendingAction = 'starting' | 'returning' | 'retrying' | 'denying' | 'allowing' | null;
 
 function phaseIndex(stage: CaseStage): number {
   if (stage === 'idle' || stage === 'preflight') return 0;
@@ -35,6 +36,17 @@ function Icon({ name }: { name: 'agent' | 'run' | 'worker' | 'activity' | 'proof
 
 function StatusDot({ status }: { status: string }) { return <span className={`status-dot is-${status}`} aria-hidden="true"/>; }
 
+function OperationProgress({ action }: { action: Exclude<PendingAction, null> }) {
+  const copy = {
+    starting: ['Starting release check', 'Creating a fresh parent run before any worker is dispatched.'],
+    returning: ['Closing this release run', 'Preserving its summary and receipt while clearing worker noise.'],
+    retrying: ['Requesting repair again', 'Continuing inside the same parent TrueForge session.'],
+    denying: ['Verifying zero mutation', 'TrueForge is denying the write; ForgeCanary is comparing state hashes.'],
+    allowing: ['Applying reviewed repair', 'TrueForge is executing only the approved scope before replay verification.']
+  } as const;
+  return <div className="operation-progress" role="status" aria-live="polite"><span className="operation-spinner" aria-hidden="true"/><span><strong>{copy[action][0]}</strong><small>{copy[action][1]}</small></span></div>;
+}
+
 function eventStatus(type: string): string {
   if (type.includes('approval_required') || type.includes('regression')) return 'held';
   if (type.includes('done') || type.includes('verified') || type.includes('response') || type.includes('complete')) return 'verified';
@@ -58,7 +70,7 @@ function roundedMachineRoute(start: MachinePoint, end: MachinePoint, busX: numbe
   return `M ${start.x} ${start.y} H ${busX - radius} Q ${busX} ${start.y} ${busX} ${start.y + verticalDirection * radius} V ${end.y - verticalDirection * radius} Q ${busX} ${end.y} ${busX + radius} ${end.y} H ${end.x}`;
 }
 
-function DetailPanel({ value, selected, busy, onDecision, onRetry }: { value: ForgeCanaryCase | null; selected?: CaseJobRow; busy: boolean; onDecision: (decision: 'deny' | 'allow') => void; onRetry: () => void }) {
+function DetailPanel({ value, selected, busy, pendingAction, onDecision, onRetry }: { value: ForgeCanaryCase | null; selected?: CaseJobRow; busy: boolean; pendingAction: PendingAction; onDecision: (decision: 'deny' | 'allow') => void; onRetry: () => void }) {
   const stage = value?.stage ?? 'idle';
   const events = value?.events.slice(-7).reverse() ?? [];
   const failed = value?.jobs.find(job => job.finalVerdict === 'regression');
@@ -66,15 +78,16 @@ function DetailPanel({ value, selected, busy, onDecision, onRetry }: { value: Fo
   if (stage === 'awaiting_approval' && value) return <aside className="context-panel approval-panel" aria-live="polite">
     <div className="panel-kicker"><Icon name="tool"/> Human checkpoint</div><h2>Repair is ready.<br/>Nothing has changed.</h2>
     <p>TrueForge paused the adapter write inside this release run. Review its exact scope, then deny or allow.</p>
+    {(pendingAction === 'denying' || pendingAction === 'allowing') && <OperationProgress action={pendingAction}/>}
     <div className="scope-card"><span>PROPOSED TOOL CALL</span><strong><code>{value.approval.toolName ?? 'activate_compatibility_adapter'}</code></strong><dl><div><dt>Adapter</dt><dd>{String(value.approval.arguments?.adapter_id ?? '—')}</dd></div><div><dt>Scope</dt><dd>{String(value.approval.arguments?.scope ?? '—')}</dd></div><div><dt>Candidate hash</dt><dd><code>{short(String(value.approval.arguments?.candidate_schema_hash ?? ''), 14)}</code></dd></div><div><dt>Reversible</dt><dd>Yes</dd></div></dl></div>
-    <div className="approval-actions"><button className="button secondary" disabled={busy} onClick={() => onDecision('deny')}>Deny & prove no change</button><button className="button primary" disabled={busy} onClick={() => onDecision('allow')}>Allow & verify repair</button></div>
+    <div className="approval-actions"><button className="button secondary" disabled={busy} onClick={() => onDecision('deny')}>{pendingAction === 'denying' ? 'Denying & verifying…' : 'Deny & prove no change'}</button><button className="button primary" disabled={busy} onClick={() => onDecision('allow')}>{pendingAction === 'allowing' ? 'Applying reviewed repair…' : 'Allow & verify repair'}</button></div>
     <small className="panel-note">Decision resumes this same parent workflow.</small>
   </aside>;
 
   if (stage === 'denied_verified' && value) return <aside className="context-panel proof-panel">
     <div className="panel-kicker"><Icon name="proof"/> Denial proof</div><div className="verdict-mark">✓</div><h2>“No” changed nothing.</h2><p>Adapter and candidate hashes are unchanged. The release run is still open and can continue.</p>
     <div className="hash-row"><span>BEFORE</span><code>{short(value.approval.adapterStateHashBefore, 16)}</code></div><div className="hash-row"><span>AFTER</span><code>{short(value.approval.adapterStateHashAfter, 16)}</code></div>
-    <button className="button primary" disabled={busy} onClick={onRetry}>Request repair again</button>
+    {pendingAction === 'retrying' && <OperationProgress action="retrying"/>}<button className="button primary" disabled={busy} onClick={onRetry}>{pendingAction === 'retrying' ? 'Requesting repair…' : 'Request repair again'}</button>
   </aside>;
 
   if (stage === 'complete' && value) {
@@ -86,6 +99,7 @@ function DetailPanel({ value, selected, busy, onDecision, onRetry }: { value: Fo
 
   return <aside className="context-panel">
     <div className="panel-kicker"><Icon name="activity"/> {selected ? 'Worker inspection' : 'Live activity'}</div>
+    {pendingAction && pendingAction !== 'returning' && <OperationProgress action={pendingAction}/>}
     {selected ? (() => { const latest = selected.repaired ?? selected.candidate ?? selected.baseline; return <><div className="selected-worker"><StatusDot status={selected.workerStatus}/><div><span>{selected.replayJobId}</span><h2>{selected.orderId}</h2></div></div><p>{selected.currentTask}</p><div className="inspection-grid"><div><span>CURRENT MCP</span><strong>{selected.baseline ? 'Captured' : 'Waiting'}</strong></div><div><span>LATEST OUTCOME</span><strong>{latest ? (latest.oracle.passed ? 'Correct' : 'Regression') : 'Waiting'}</strong></div><div><span>TOOL</span><code>{latest?.toolName ?? 'reserve_inventory'}</code></div><div><span>RESULT</span><code>{latest ? short(JSON.stringify(latest.toolResponse), 46) : 'Awaiting response'}</code></div></div></>; })() : <><h2>{failed ? 'One worker is held.' : value?.summary ?? 'Ready for a release check.'}</h2><p>{failed ? `${failed.orderId} returned the same protocol response but changed the real inventory outcome.` : 'Start one parent run. The saved agent dispatches six isolated replay workers and closes each job with evidence.'}</p></>}
     <ol className="activity-log" aria-live="polite">{events.length ? events.map(event => <li key={event.id}><time>{time(event.createdAt)}</time><StatusDot status={eventStatus(event.type)}/><span><strong>{event.title}</strong><small>{event.detail ?? event.type}</small></span></li>) : <li className="empty-log">Activity will appear here in real time.</li>}</ol>
   </aside>;
@@ -118,7 +132,7 @@ function ParentRunInspectorModal({ value, jobs, onClose }: { value: ForgeCanaryC
   </dialog>;
 }
 
-function EmptyWorkbench({ config, busy, servicesReady, onStart }: { config: PublicConfig | null; busy: boolean; servicesReady: boolean; onStart: () => void }) {
+function EmptyWorkbench({ config, busy, servicesReady, pendingAction, onStart }: { config: PublicConfig | null; busy: boolean; servicesReady: boolean; pendingAction: PendingAction; onStart: () => void }) {
   return <section className="studio-empty-state" aria-labelledby="empty-state-title">
     <article className="machine-node saved-agent-machine empty-saved-agent" aria-label="Reusable saved agent configuration">
       <MachineChassis ports={['right']}/>
@@ -130,7 +144,7 @@ function EmptyWorkbench({ config, busy, servicesReady, onStart }: { config: Publ
       <span className="eyebrow">NO PARENT RUN</span>
       <h2 id="empty-state-title">Ready for a fresh release check.</h2>
       <p>The saved agent is configured. Starting creates one new parent session, then workers appear only as their replay jobs are dispatched.</p>
-      <button className="button primary" disabled={busy || !servicesReady} onClick={onStart}>Start release check <span>→</span></button>
+      {pendingAction === 'starting' && <OperationProgress action="starting"/>}<button className="button primary" disabled={busy || !servicesReady} onClick={onStart}>{pendingAction === 'starting' ? 'Creating parent run…' : 'Start release check'} <span>→</span></button>
       <div className="empty-state-sequence"><span>01 FRESH PARENT</span><span>02 SIX REPLAYS</span><span>03 HUMAN DECISION</span><span>04 RECEIPT</span></div>
     </article>
   </section>;
@@ -143,6 +157,7 @@ export default function App() {
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [busy, setBusy] = useState(false); const [initializing, setInitializing] = useState(true); const [error, setError] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const refreshTimer = useRef<number | null>(null);
   const refreshGeneration = useRef(0);
   const workbenchRef = useRef<HTMLElement | null>(null);
@@ -157,7 +172,7 @@ export default function App() {
   }, []);
 
   useEffect(() => { Promise.allSettled([loadConfig(), loadHealth(), loadCurrentCase()]).then(([a, b, c]) => { if (a.status === 'fulfilled') setConfig(a.value); else setError(a.reason instanceof Error ? a.reason.message : String(a.reason)); if (b.status === 'fulfilled') setHealth(b.value); if (c.status === 'fulfilled') setCurrentCase(c.value); setInitializing(false); }); }, []);
-  useEffect(() => { if (!currentCase || !ACTIVE_STAGES.has(currentCase.stage)) return; const caseId = currentCase.id; const generation = refreshGeneration.current; const source = new EventSource(`/api/cases/${encodeURIComponent(caseId)}/events?after=${currentCase.sequence}`); const schedule = () => { if (refreshTimer.current) window.clearTimeout(refreshTimer.current); refreshTimer.current = window.setTimeout(() => void refreshCase(caseId, generation).catch(caught => setError(String(caught))), 90); }; source.addEventListener('trace', schedule); const poll = window.setInterval(schedule, 1_500); return () => { source.close(); window.clearInterval(poll); if (refreshTimer.current) window.clearTimeout(refreshTimer.current); }; }, [currentCase?.id, currentCase?.stage, refreshCase]);
+  useEffect(() => { if (!currentCase || !ACTIVE_STAGES.has(currentCase.stage)) return; const caseId = currentCase.id; const generation = refreshGeneration.current; const source = new EventSource(`/api/cases/${encodeURIComponent(caseId)}/events?after=${currentCase.sequence}`); const schedule = () => { if (refreshTimer.current !== null) return; refreshTimer.current = window.setTimeout(() => { refreshTimer.current = null; void refreshCase(caseId, generation).catch(caught => setError(String(caught))); }, 40); }; source.addEventListener('trace', schedule); const poll = window.setInterval(schedule, 1_000); schedule(); return () => { source.close(); window.clearInterval(poll); if (refreshTimer.current !== null) window.clearTimeout(refreshTimer.current); refreshTimer.current = null; }; }, [currentCase?.id, currentCase?.stage, refreshCase]);
   useLayoutEffect(() => {
     const workbench = workbenchRef.current;
     const savedAgent = savedAgentRef.current;
@@ -192,10 +207,10 @@ export default function App() {
     return () => observer.disconnect();
   }, [currentCase?.jobs.map(job => job.replayJobId).join('|')]);
 
-  const begin = async () => { const generation = ++refreshGeneration.current; setBusy(true); setError(null); setSelectedOrder(null); try { if (currentCase && ['complete', 'denied_verified', 'failed'].includes(currentCase.stage)) await resetDemo(); const next = await startCase(); if (generation === refreshGeneration.current) setCurrentCase(next); } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); } finally { setBusy(false); } };
-  const showEmptyState = async () => { const generation = ++refreshGeneration.current; setBusy(true); setError(null); try { await returnToEmptyState(); if (generation === refreshGeneration.current) setCurrentCase(null); setSelectedOrder(null); setInspectorOpen(false); } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); } finally { setBusy(false); } };
-  const requestAgain = async () => { if (!currentCase) return; setBusy(true); setError(null); try { setCurrentCase(await retryApproval(currentCase.id)); } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); } finally { setBusy(false); } };
-  const submitDecision = async (decision: 'deny' | 'allow') => { if (!currentCase) return; setBusy(true); setError(null); try { setCurrentCase(await decide(currentCase.id, decision)); } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); await refreshCase(currentCase.id).catch(() => undefined); } finally { setBusy(false); } };
+  const begin = async () => { const generation = ++refreshGeneration.current; setBusy(true); setPendingAction('starting'); setError(null); setSelectedOrder(null); try { if (currentCase && ['complete', 'denied_verified', 'failed'].includes(currentCase.stage)) await resetDemo(); const next = await startCase(); if (generation === refreshGeneration.current) setCurrentCase(next); } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); } finally { setBusy(false); setPendingAction(null); } };
+  const showEmptyState = async () => { const generation = ++refreshGeneration.current; setBusy(true); setPendingAction('returning'); setError(null); try { await returnToEmptyState(); if (generation === refreshGeneration.current) setCurrentCase(null); setSelectedOrder(null); setInspectorOpen(false); } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); } finally { setBusy(false); setPendingAction(null); } };
+  const requestAgain = async () => { if (!currentCase) return; setBusy(true); setPendingAction('retrying'); setError(null); try { setCurrentCase(await retryApproval(currentCase.id)); } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); } finally { setBusy(false); setPendingAction(null); } };
+  const submitDecision = async (decision: 'deny' | 'allow') => { if (!currentCase) return; setBusy(true); setPendingAction(decision === 'deny' ? 'denying' : 'allowing'); setError(null); try { setCurrentCase(await decide(currentCase.id, decision)); } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); await refreshCase(currentCase.id).catch(() => undefined); } finally { setBusy(false); setPendingAction(null); } };
 
   const stage = currentCase?.stage ?? 'idle'; const activePhase = phaseIndex(stage); const active = ACTIVE_STAGES.has(stage); const jobs = currentCase?.jobs ?? [];
   const selected = useMemo(() => jobs.find(job => job.orderId === selectedOrder), [jobs, selectedOrder]); const servicesReady = health?.ok ?? false;
@@ -208,7 +223,7 @@ export default function App() {
         : active
           ? 'running'
           : 'queued';
-  const runLabel = busy ? 'Starting…' : stage === 'awaiting_approval' ? 'Waiting for approval' : active ? 'Release check running' : currentCase ? 'Start fresh release check' : 'Start release check';
+  const runLabel = pendingAction === 'starting' ? 'Creating parent run…' : stage === 'awaiting_approval' ? 'Waiting for approval' : active ? 'Release check running' : currentCase ? 'Start fresh release check' : 'Start release check';
   const canReturnToEmpty = Boolean(currentCase) && !busy && (stage === 'awaiting_approval' || !active);
   const anyWorkerWorking = jobs.some(job => job.workerStatus === 'spawning' || job.workerStatus === 'running');
   const measuredWorkers = jobs.flatMap(job => {
@@ -227,7 +242,7 @@ export default function App() {
     </header>
     <main className={`release-page${currentCase ? '' : ' is-empty'}`}>
       {error && <div className="error-banner" role="alert"><strong>{stage === 'failed' ? 'Stopped safely.' : 'Runtime notice.'}</strong><span>{error}</span></div>}
-      {!currentCase ? <EmptyWorkbench config={config} busy={busy || initializing} servicesReady={servicesReady} onStart={begin}/> : <>
+      {!currentCase ? <EmptyWorkbench config={config} busy={busy || initializing} servicesReady={servicesReady} pendingAction={pendingAction} onStart={begin}/> : <>
       <section ref={workbenchRef} className={`workbench machine-workbench phase-${activePhase}`}>
         <svg className="machine-conduits" viewBox={`0 0 ${machineGeometry.width} ${machineGeometry.height}`} aria-hidden="true">
           {machineGeometry.savedOutput && machineGeometry.parentInput && <GlassConduit
@@ -260,8 +275,8 @@ export default function App() {
           <MachineChassis ports={['left', 'right']}/>
           <div className="machine-copy parent-controller-copy"><div className="module-label"><Icon name="run"/> PARENT RELEASE RUN</div><div className="parent-core"><span><Icon name="run"/></span><div><h2>{currentCase?.historyTitle ?? 'New release check'}</h2><p>{currentCase?.parentRunId ? `Run ${short(currentCase.parentRunId, 12)}` : 'Created only after start'}</p></div></div><div className="parent-state"><StatusDot status={parentStatus}/><span>{currentCase?.summary ?? 'Waiting for operator'}</span></div><div className="parent-meta"><span>ONE PARENT</span><span>{jobs.length}/6 SPAWNED</span></div></div>
         </article>
-        <section className="worker-bank" aria-label="Spawned replay workers" aria-live="polite"><header><div><span className="eyebrow">LIVE REPLAY BANK</span><h2>Workers appear as TrueForge spawns them.</h2></div><span className="worker-count">{jobs.length}/6 spawned · {jobs.filter(job => job.workerStatus === 'closed').length}/6 closed</span></header><div className="worker-stack">{jobs.length === 0 && <div className="worker-empty"><Icon name="worker"/><span><strong>No replay workers spawned</strong><small>Starting a release check creates each isolated worker when its job is dispatched.</small></span></div>}{jobs.map((job, index) => <GlossyWorkerTask nodeRef={node => { if (node) workerRefs.current.set(job.replayJobId, node); else workerRefs.current.delete(job.replayJobId); }} job={job} index={index} selected={selectedOrder === job.orderId} key={job.replayJobId} onSelect={() => setSelectedOrder(selectedOrder === job.orderId ? null : job.orderId)}/>)}</div></section>
-        <DetailPanel value={currentCase} selected={selected} busy={busy} onDecision={submitDecision} onRetry={requestAgain}/>
+        <section className="worker-bank" aria-label="Spawned replay workers" aria-live="polite"><header><div><span className="eyebrow">LIVE REPLAY BANK</span><h2>Workers appear as TrueForge spawns them.</h2></div><span className={`worker-count${anyWorkerWorking ? ' is-processing' : ''}`}>{anyWorkerWorking && <StatusDot status="running"/>}{anyWorkerWorking ? 'Processing' : `${jobs.length}/6 spawned · ${jobs.filter(job => job.workerStatus === 'closed').length}/6 closed`}</span></header><div className="worker-stack">{jobs.length === 0 && <div className="worker-empty"><Icon name="worker"/><span><strong>No replay workers spawned</strong><small>Starting a release check creates each isolated worker when its job is dispatched.</small></span></div>}{jobs.map((job, index) => <GlossyWorkerTask nodeRef={node => { if (node) workerRefs.current.set(job.replayJobId, node); else workerRefs.current.delete(job.replayJobId); }} job={job} index={index} selected={selectedOrder === job.orderId} key={job.replayJobId} onSelect={() => setSelectedOrder(selectedOrder === job.orderId ? null : job.orderId)}/>)}</div></section>
+        <DetailPanel value={currentCase} selected={selected} busy={busy} pendingAction={pendingAction} onDecision={submitDecision} onRetry={requestAgain}/>
       </section>
       <section className="run-inspector" aria-label="Parent run inspection"><span className="run-inspector-meta"><Icon name="history"/><span><strong>{currentCase?.historyTitle ?? 'Release check history'}</strong><small>{currentCase ? `${jobs.length} replay jobs · ${currentCase.events.length} persisted events · ${currentCase.releaseHistory?.length ?? 0} prior checks` : 'One meaningful entry per release check'}</small></span></span><button className="run-inspector-trigger" type="button" onClick={() => setInspectorOpen(true)}>Inspect parent run <span aria-hidden="true">↗</span></button></section>
       </>}
