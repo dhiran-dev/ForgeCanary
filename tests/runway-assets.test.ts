@@ -104,6 +104,7 @@ describe('runway story image plates', () => {
 
     expect(app).toContain("type PendingAction = 'starting' | 'returning' | 'retrying' | 'denying' | 'allowing' | null");
     expect(app).toContain('if (refreshTimer.current !== null) return');
+    expect(app).toContain('if (generation === refreshGeneration.current) setError(String(caught))');
     expect(app).toContain("pendingAction === 'denying' ? 'Denying & verifying…'");
     expect(app).toContain("anyWorkerWorking ? 'Processing'");
     expect(service).toContain('const LIVE_WORKER_DWELL_MS = 520');
