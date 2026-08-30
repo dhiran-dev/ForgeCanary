@@ -1,460 +1,215 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import ApprovalCard from '@/components/primitives/ApprovalCard';
-import LoadingState from '@/components/primitives/LoadingState';
-import TaskRows, { type TaskRow } from '@/components/primitives/TaskRows';
-import ToolChips, { type ToolStep } from '@/components/primitives/ToolChips';
-import {
-  decide,
-  loadCase,
-  loadConfig,
-  loadCurrentCase,
-  loadHealth,
-  resetDemo,
-  retryApproval,
-  startCase
-} from './api';
-import type { CaseJobRow, CaseStage, CaseTraceEvent, ForgeCanaryCase, HealthState, PublicConfig } from './types';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { decide, loadCase, loadConfig, loadCurrentCase, loadHealth, resetDemo, retryApproval, startCase } from './api';
+import { GlassConduit } from './components/GlassConduit';
+import { GlossyWorkerTask } from './components/GlossyWorkerTask';
+import { MachineChassis } from './components/MachineChassis';
+import type { CaseJobRow, CaseStage, ForgeCanaryCase, HealthState, PublicConfig } from './types';
 
-const ACTIVE_STAGES = new Set<CaseStage>([
-  'preflight',
-  'replaying_baseline',
-  'replaying_candidate',
-  'analyzing',
-  'regression_detected',
-  'proposing_repair',
-  'awaiting_approval',
-  'applying_repair',
-  'verifying_repair'
-]);
+const ACTIVE_STAGES = new Set<CaseStage>(['preflight', 'replaying_baseline', 'replaying_candidate', 'analyzing', 'regression_detected', 'proposing_repair', 'awaiting_approval', 'applying_repair', 'verifying_repair']);
+const PHASES = ['Setup', 'Replay', 'Compare', 'Decide', 'Proof'] as const;
+const ORDER_IDS = ['ORDER-101', 'ORDER-102', 'ORDER-103', 'ORDER-104', 'ORDER-105', 'ORDER-106'];
 
-const STAGE_META: Record<CaseStage, { label: string; tone: string }> = {
-  idle: { label: 'Ready', tone: 'neutral' },
-  preflight: { label: 'Connecting', tone: 'working' },
-  replaying_baseline: { label: 'Replaying current', tone: 'working' },
-  replaying_candidate: { label: 'Replaying proposed', tone: 'working' },
-  analyzing: { label: 'Agent analysis', tone: 'working' },
-  regression_detected: { label: 'Regression found', tone: 'danger' },
-  proposing_repair: { label: 'Preparing repair', tone: 'working' },
-  awaiting_approval: { label: 'Awaiting human', tone: 'warning' },
-  denied_verified: { label: 'Denied safely', tone: 'safe' },
-  applying_repair: { label: 'Applying repair', tone: 'working' },
-  verifying_repair: { label: 'Verifying repair', tone: 'working' },
-  complete: { label: 'Safe to ship', tone: 'safe' },
-  failed: { label: 'Stopped safely', tone: 'danger' }
+function phaseIndex(stage: CaseStage): number {
+  if (stage === 'idle' || stage === 'preflight') return 0;
+  if (stage === 'replaying_baseline' || stage === 'replaying_candidate') return 1;
+  if (stage === 'analyzing' || stage === 'regression_detected') return 2;
+  if (stage === 'proposing_repair' || stage === 'awaiting_approval' || stage === 'applying_repair') return 3;
+  return 4;
+}
+
+function short(value?: string, size = 10): string { return value ? `${value.slice(0, size)}${value.length > size ? '…' : ''}` : '—'; }
+function time(value: string): string { return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(value)); }
+
+function Icon({ name }: { name: 'agent' | 'run' | 'worker' | 'activity' | 'proof' | 'history' | 'tool' }) {
+  const paths: Record<typeof name, ReactNode> = {
+    agent: <><path d="M7 7h10v10H7z"/><path d="M10 4h4M10 20h4M4 10v4M20 10v4"/><circle cx="11" cy="12" r="1"/><circle cx="15" cy="12" r="1"/></>,
+    run: <><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 9h8M8 13h5M16 13l2 2-2 2"/></>,
+    worker: <><path d="M12 3 4 7v10l8 4 8-4V7z"/><path d="m4 7 8 4 8-4M12 11v10"/></>,
+    activity: <path d="M3 12h4l2-6 4 12 2-6h6"/>,
+    proof: <><path d="M5 3h11l3 3v15H5z"/><path d="M16 3v4h4M8 13l2 2 5-5"/></>,
+    history: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2M3 12H1"/></>,
+    tool: <><path d="m14 6 4-3 3 3-3 4M10 14l-5 5M8 12l4 4"/><path d="M5 15 2 12l6-6 3 3"/></>
+  };
+  return <svg className="icon" aria-hidden="true" viewBox="0 0 24 24">{paths[name]}</svg>;
+}
+
+function StatusDot({ status }: { status: string }) { return <span className={`status-dot is-${status}`} aria-hidden="true"/>; }
+
+function eventStatus(type: string): string {
+  if (type.includes('approval_required') || type.includes('regression')) return 'held';
+  if (type.includes('done') || type.includes('verified') || type.includes('response') || type.includes('complete')) return 'verified';
+  return 'running';
+}
+
+type MachinePoint = { x: number; y: number };
+type MachineGeometry = {
+  width: number;
+  height: number;
+  savedOutput?: MachinePoint;
+  parentInput?: MachinePoint;
+  parentOutput?: MachinePoint;
+  workers: Record<string, MachinePoint>;
 };
 
-function stageIndex(value: ForgeCanaryCase | null): number {
-  if (!value) return -1;
-  if (value.stage === 'complete') return 5;
-  if (value.stage === 'denied_verified') return 4;
-  if (value.stage === 'failed') return Math.max(0, stageIndex({ ...value, stage: value.error?.stage ?? 'preflight' }));
-  if (value.stage === 'applying_repair' || value.stage === 'verifying_repair') return 4;
-  if (value.stage === 'regression_detected' || value.stage === 'proposing_repair' || value.stage === 'awaiting_approval') return 3;
-  if (value.stage === 'analyzing') return 2;
-  if (value.stage === 'replaying_baseline' || value.stage === 'replaying_candidate') return 1;
-  return 0;
+function roundedMachineRoute(start: MachinePoint, end: MachinePoint, busX: number): string {
+  const verticalDirection = end.y < start.y ? -1 : 1;
+  const radius = Math.min(12, Math.abs(end.y - start.y) / 2, Math.max(0, busX - start.x) / 2);
+  if (radius < 1) return `M ${start.x} ${start.y} H ${end.x}`;
+  return `M ${start.x} ${start.y} H ${busX - radius} Q ${busX} ${start.y} ${busX} ${start.y + verticalDirection * radius} V ${end.y - verticalDirection * radius} Q ${busX} ${end.y} ${busX + radius} ${end.y} H ${end.x}`;
 }
 
-function progressRows(value: ForgeCanaryCase | null): TaskRow[] {
-  const current = stageIndex(value);
-  const definitions = [
-    ['connect', 'Connect TrueForge', '3 MCP connectors', ['Model and connectors', value?.model ?? 'Waiting']],
-    ['replay', 'Replay successful work', '6 jobs × 2 versions', ['Current MCP → proposed MCP', `${value?.jobs.filter(row => row.candidate).length ?? 0}/6 compared`]],
-    ['analyze', 'Audit the outcomes', 'Sandbox + subagents', ['Protocol contract', 'Independent business state']],
-    ['approve', 'Review the repair', 'Human-controlled', ['TrueForge tool approval', 'Stale-state protection']],
-    ['verify', 'Replay after repair', 'Fresh state', ['No cached result', `${value?.jobs.filter(row => row.repaired?.oracle.passed).length ?? 0}/6 verified`]]
-  ] as const;
+function DetailPanel({ value, selected, busy, onDecision, onRetry }: { value: ForgeCanaryCase | null; selected?: CaseJobRow; busy: boolean; onDecision: (decision: 'deny' | 'allow') => void; onRetry: () => void }) {
+  const stage = value?.stage ?? 'idle';
+  const events = value?.events.slice(-7).reverse() ?? [];
+  const failed = value?.jobs.find(job => job.finalVerdict === 'regression');
 
-  return definitions.map(([key, label, amount, detail], index) => {
-    let status: TaskRow['status'] = index < current ? 'done' : index === current ? 'running' : 'pending';
-    if (value?.stage === 'complete') status = 'done';
-    if (value?.stage === 'denied_verified') status = index < 4 ? 'done' : 'pending';
-    if (value?.stage === 'failed' && index === current) status = 'failed';
-    return {
-      key,
-      label,
-      amount,
-      status,
-      step: index + 1,
-      details: [
-        { label: detail[0], meta: index < current || status === 'done' ? 'done' : 'queued' },
-        { label: detail[1], meta: status === 'running' ? 'active' : status === 'done' ? 'verified' : '—' }
-      ]
-    };
-  });
-}
+  if (stage === 'awaiting_approval' && value) return <aside className="context-panel approval-panel" aria-live="polite">
+    <div className="panel-kicker"><Icon name="tool"/> Human checkpoint</div><h2>Repair is ready.<br/>Nothing has changed.</h2>
+    <p>TrueForge paused the adapter write inside this release run. Review its exact scope, then deny or allow.</p>
+    <div className="scope-card"><span>PROPOSED TOOL CALL</span><strong><code>{value.approval.toolName ?? 'activate_compatibility_adapter'}</code></strong><dl><div><dt>Adapter</dt><dd>{String(value.approval.arguments?.adapter_id ?? '—')}</dd></div><div><dt>Scope</dt><dd>{String(value.approval.arguments?.scope ?? '—')}</dd></div><div><dt>Candidate hash</dt><dd><code>{short(String(value.approval.arguments?.candidate_schema_hash ?? ''), 14)}</code></dd></div><div><dt>Reversible</dt><dd>Yes</dd></div></dl></div>
+    <div className="approval-actions"><button className="button secondary" disabled={busy} onClick={() => onDecision('deny')}>Deny & prove no change</button><button className="button primary" disabled={busy} onClick={() => onDecision('allow')}>Allow & verify repair</button></div>
+    <small className="panel-note">Decision resumes this same parent workflow.</small>
+  </aside>;
 
-function traceIcon(event: CaseTraceEvent): ToolStep['icon'] {
-  if (event.type.includes('thread') || event.type.includes('model') || event.type.includes('analysis')) return 'think';
-  if (event.type.includes('tool') || event.type.includes('approval')) return 'run';
-  if (event.type.includes('mcp') || event.type.includes('sandbox')) return 'read';
-  return 'write';
-}
+  if (stage === 'denied_verified' && value) return <aside className="context-panel proof-panel">
+    <div className="panel-kicker"><Icon name="proof"/> Denial proof</div><div className="verdict-mark">✓</div><h2>“No” changed nothing.</h2><p>Adapter and candidate hashes are unchanged. The release run is still open and can continue.</p>
+    <div className="hash-row"><span>BEFORE</span><code>{short(value.approval.adapterStateHashBefore, 16)}</code></div><div className="hash-row"><span>AFTER</span><code>{short(value.approval.adapterStateHashAfter, 16)}</code></div>
+    <button className="button primary" disabled={busy} onClick={onRetry}>Request repair again</button>
+  </aside>;
 
-function traceSteps(events: CaseTraceEvent[]): ToolStep[] {
-  return events.slice(-9).map(event => ({
-    icon: traceIcon(event),
-    label: event.title,
-    chip: event.type,
-    mono: true,
-    detailMono: false,
-    detail: [{ text: event.detail ?? `${event.source === 'trueforge' ? 'TrueForge' : 'ForgeCanary'} event persisted` }]
-  }));
-}
+  if (stage === 'complete' && value) {
+    const passed = value.jobs.filter(job => job.repaired?.oracle.passed).length;
+    return <aside className="context-panel proof-panel"><div className="panel-kicker"><Icon name="proof"/> Release proof</div><div className="verdict-mark">✓</div><h2>Safe to ship.</h2><p>The approved adapter was applied and all six jobs were replayed from fresh state.</p><div className="metric-pair"><div><strong>{passed}/6</strong><span>outcomes correct</span></div><div><strong>1</strong><span>scoped mutation</span></div></div><a className="button primary" href={`/api/cases/${encodeURIComponent(value.id)}/receipt`} download>Download release receipt</a></aside>;
+  }
 
-function short(value: string | undefined, length = 9): string {
-  return value ? `${value.slice(0, length)}…` : '—';
-}
+  if (stage === 'failed' && value) return <aside className="context-panel failure-panel" role="alert"><div className="panel-kicker"><Icon name="proof"/> Safe stop</div><div className="failure-mark">!</div><h2>Release check stopped.</h2><p>{value.error?.message ?? 'No unapproved change was applied.'}</p><div className="hash-row"><span>FAILED AT</span><code>{value.error?.stage ?? 'unknown'}</code></div></aside>;
 
-function formatTime(value: string): string {
-  return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(new Date(value));
-}
-
-function lotCopy(lotId: string | null | undefined): { title: string; detail: string } {
-  if (lotId === 'LOT-COLD-EARLY') return { title: 'Expires Sep 05', detail: 'Correct · oldest eligible stock ships first' };
-  if (lotId === 'LOT-COLD-CHEAP') return { title: 'Expires Dec 01', detail: 'Wrong · cheaper stock was chosen instead' };
-  if (!lotId) return { title: 'Waiting…', detail: 'External-state check pending' };
-  return { title: lotId.replace(/^LOT-/, '').replaceAll('-', ' '), detail: 'Reservation exists for the ordered quantity' };
-}
-
-function responseCopy(row: CaseJobRow | undefined, version: 'baseline' | 'candidate'): string {
-  const result = row?.[version]?.toolResponse;
-  if (!result) return 'Waiting for tool response';
-  const quantity = Number(result.quantity ?? row.quantity);
-  return `${String(result.status ?? 'reserved')} · ${quantity} ${quantity === 1 ? 'unit' : 'units'}`;
-}
-
-function quantityCopy(quantity: number): string {
-  return `${quantity} ${quantity === 1 ? 'unit' : 'units'}`;
-}
-
-function ErrorNotice({ message }: { message: string }) {
-  return (
-    <div className="error-notice" role="alert">
-      <span>!</span>
-      <div><strong>ForgeCanary stopped safely</strong><p>{message}</p></div>
-    </div>
-  );
-}
-
-function OutcomeChip({ state }: { state: 'waiting' | 'pass' | 'fail' | 'fixed' }) {
-  const label = { waiting: 'Queued', pass: 'Correct', fail: 'Wrong batch', fixed: 'Verified' }[state];
-  return <span className={`outcome-chip ${state}`}><i></i>{label}</span>;
+  return <aside className="context-panel">
+    <div className="panel-kicker"><Icon name="activity"/> {selected ? 'Worker inspection' : 'Live activity'}</div>
+    {selected ? (() => { const latest = selected.repaired ?? selected.candidate ?? selected.baseline; return <><div className="selected-worker"><StatusDot status={selected.workerStatus}/><div><span>{selected.replayJobId}</span><h2>{selected.orderId}</h2></div></div><p>{selected.currentTask}</p><div className="inspection-grid"><div><span>CURRENT MCP</span><strong>{selected.baseline ? 'Captured' : 'Waiting'}</strong></div><div><span>LATEST OUTCOME</span><strong>{latest ? (latest.oracle.passed ? 'Correct' : 'Regression') : 'Waiting'}</strong></div><div><span>TOOL</span><code>{latest?.toolName ?? 'reserve_inventory'}</code></div><div><span>RESULT</span><code>{latest ? short(JSON.stringify(latest.toolResponse), 46) : 'Awaiting response'}</code></div></div></>; })() : <><h2>{failed ? 'One worker is held.' : value?.summary ?? 'Ready for a release check.'}</h2><p>{failed ? `${failed.orderId} returned the same protocol response but changed the real inventory outcome.` : 'Start one parent run. The saved agent dispatches six isolated replay workers and closes each job with evidence.'}</p></>}
+    <ol className="activity-log" aria-live="polite">{events.length ? events.map(event => <li key={event.id}><time>{time(event.createdAt)}</time><StatusDot status={eventStatus(event.type)}/><span><strong>{event.title}</strong><small>{event.detail ?? event.type}</small></span></li>) : <li className="empty-log">Activity will appear here in real time.</li>}</ol>
+  </aside>;
 }
 
 export default function App() {
   const [config, setConfig] = useState<PublicConfig | null>(null);
   const [health, setHealth] = useState<HealthState | null>(null);
   const [currentCase, setCurrentCase] = useState<ForgeCanaryCase | null>(null);
-  const [initializing, setInitializing] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false); const [initializing, setInitializing] = useState(true); const [error, setError] = useState<string | null>(null);
   const refreshTimer = useRef<number | null>(null);
+  const workbenchRef = useRef<HTMLElement | null>(null);
+  const savedAgentRef = useRef<HTMLElement | null>(null);
+  const parentControllerRef = useRef<HTMLElement | null>(null);
+  const workerRefs = useRef(new Map<string, HTMLButtonElement>());
+  const [machineGeometry, setMachineGeometry] = useState<MachineGeometry>({ width: 1540, height: 600, workers: {} });
+  const refreshCase = useCallback(async (caseId?: string) => { const next = caseId ? await loadCase(caseId) : await loadCurrentCase(); setCurrentCase(next); return next; }, []);
 
-  const refreshCase = useCallback(async (caseId?: string) => {
-    const next = caseId ? await loadCase(caseId) : await loadCurrentCase();
-    setCurrentCase(next);
-    return next;
-  }, []);
-
-  useEffect(() => {
-    document.documentElement.classList.add('dark');
-    Promise.allSettled([loadConfig(), loadHealth(), loadCurrentCase()]).then(results => {
-      const [configResult, healthResult, caseResult] = results;
-      if (configResult.status === 'fulfilled') setConfig(configResult.value);
-      else setError(configResult.reason instanceof Error ? configResult.reason.message : String(configResult.reason));
-      if (healthResult.status === 'fulfilled') setHealth(healthResult.value);
-      if (caseResult.status === 'fulfilled') setCurrentCase(caseResult.value);
-      setInitializing(false);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!currentCase || !ACTIVE_STAGES.has(currentCase.stage)) return;
-    const caseId = currentCase.id;
-    const source = new EventSource(`/api/cases/${encodeURIComponent(caseId)}/events?after=${currentCase.sequence}`);
-    const scheduleRefresh = () => {
-      if (refreshTimer.current !== null) window.clearTimeout(refreshTimer.current);
-      refreshTimer.current = window.setTimeout(() => {
-        void refreshCase(caseId).catch(caught => setError(caught instanceof Error ? caught.message : String(caught)));
-      }, 100);
+  useEffect(() => { Promise.allSettled([loadConfig(), loadHealth(), loadCurrentCase()]).then(([a, b, c]) => { if (a.status === 'fulfilled') setConfig(a.value); else setError(a.reason instanceof Error ? a.reason.message : String(a.reason)); if (b.status === 'fulfilled') setHealth(b.value); if (c.status === 'fulfilled') setCurrentCase(c.value); setInitializing(false); }); }, []);
+  useEffect(() => { if (!currentCase || !ACTIVE_STAGES.has(currentCase.stage)) return; const caseId = currentCase.id; const source = new EventSource(`/api/cases/${encodeURIComponent(caseId)}/events?after=${currentCase.sequence}`); const schedule = () => { if (refreshTimer.current) window.clearTimeout(refreshTimer.current); refreshTimer.current = window.setTimeout(() => void refreshCase(caseId).catch(caught => setError(String(caught))), 90); }; source.addEventListener('trace', schedule); const poll = window.setInterval(schedule, 1_500); return () => { source.close(); window.clearInterval(poll); if (refreshTimer.current) window.clearTimeout(refreshTimer.current); }; }, [currentCase?.id, currentCase?.stage, refreshCase]);
+  useLayoutEffect(() => {
+    const workbench = workbenchRef.current;
+    const savedAgent = savedAgentRef.current;
+    const parentController = parentControllerRef.current;
+    if (!workbench || !savedAgent || !parentController) return;
+    const measure = () => {
+      const root = workbench.getBoundingClientRect();
+      const side = (element: Element, edge: 'left' | 'right'): MachinePoint => {
+        const rect = element.getBoundingClientRect();
+        return {
+          x: (edge === 'left' ? rect.left : rect.right) - root.left,
+          y: rect.top + rect.height / 2 - root.top
+        };
+      };
+      const workerPoints: Record<string, MachinePoint> = {};
+      for (const [jobId, element] of workerRefs.current) workerPoints[jobId] = side(element, 'left');
+      setMachineGeometry({
+        width: root.width,
+        height: root.height,
+        savedOutput: side(savedAgent, 'right'),
+        parentInput: side(parentController, 'left'),
+        parentOutput: side(parentController, 'right'),
+        workers: workerPoints
+      });
     };
-    source.addEventListener('trace', scheduleRefresh);
-    const poll = window.setInterval(scheduleRefresh, 1_500);
-    return () => {
-      source.close();
-      window.clearInterval(poll);
-      if (refreshTimer.current !== null) window.clearTimeout(refreshTimer.current);
-    };
-  }, [currentCase?.id, currentCase?.stage, refreshCase]);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(workbench);
+    observer.observe(savedAgent);
+    observer.observe(parentController);
+    for (const element of workerRefs.current.values()) observer.observe(element);
+    return () => observer.disconnect();
+  }, [currentCase?.jobs.map(job => job.replayJobId).join('|')]);
 
-  const begin = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      if (currentCase && ['complete', 'denied_verified', 'failed'].includes(currentCase.stage)) await resetDemo();
-      setCurrentCase(await startCase());
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const begin = async () => { setBusy(true); setError(null); setSelectedOrder(null); try { if (currentCase && ['complete', 'denied_verified', 'failed'].includes(currentCase.stage)) await resetDemo(); setCurrentCase(await startCase()); } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); } finally { setBusy(false); } };
+  const requestAgain = async () => { if (!currentCase) return; setBusy(true); setError(null); try { setCurrentCase(await retryApproval(currentCase.id)); } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); } finally { setBusy(false); } };
+  const submitDecision = async (decision: 'deny' | 'allow') => { if (!currentCase) return; setBusy(true); setError(null); try { setCurrentCase(await decide(currentCase.id, decision)); } catch (caught) { setError(caught instanceof Error ? caught.message : String(caught)); await refreshCase(currentCase.id).catch(() => undefined); } finally { setBusy(false); } };
 
-  const requestAgain = async () => {
-    if (!currentCase) return;
-    setBusy(true);
-    setError(null);
-    try {
-      setCurrentCase(await retryApproval(currentCase.id));
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const stage = currentCase?.stage ?? 'idle'; const activePhase = phaseIndex(stage); const active = ACTIVE_STAGES.has(stage); const jobs = currentCase?.jobs ?? [];
+  const selected = useMemo(() => jobs.find(job => job.orderId === selectedOrder), [jobs, selectedOrder]); const servicesReady = health?.ok ?? false;
+  const parentStatus = stage === 'awaiting_approval' || stage === 'denied_verified'
+    ? 'held'
+    : stage === 'failed'
+      ? 'failed'
+      : stage === 'complete'
+        ? 'closed'
+        : active
+          ? 'running'
+          : 'queued';
+  const runLabel = busy ? 'Starting…' : stage === 'awaiting_approval' ? 'Waiting for approval' : active ? 'Release check running' : currentCase ? 'Start fresh release check' : 'Start release check';
+  const anyWorkerWorking = jobs.some(job => job.workerStatus === 'spawning' || job.workerStatus === 'running');
+  const measuredWorkers = jobs.flatMap(job => {
+    const point = machineGeometry.workers[job.replayJobId];
+    return point ? [{ job, point }] : [];
+  });
+  const parentOutput = machineGeometry.parentOutput;
+  const conduitBusX = parentOutput && measuredWorkers.length > 0
+    ? parentOutput.x + Math.min(44, Math.max(26, (measuredWorkers[0].point.x - parentOutput.x) * .44))
+    : undefined;
 
-  const submitDecision = async (answers: Record<number, number[]>) => {
-    if (!currentCase) return;
-    const selected = answers[0]?.[0];
-    if (selected !== 0 && selected !== 1) return;
-    setBusy(true);
-    setError(null);
-    try {
-      setCurrentCase(await decide(currentCase.id, selected === 0 ? 'deny' : 'allow'));
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
-      await refreshCase(currentCase.id).catch(() => undefined);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const heroRow = useMemo(
-    () => currentCase?.jobs.find(row => row.candidate && !row.candidate.oracle.passed) ?? currentCase?.jobs[0],
-    [currentCase?.jobs]
-  );
-  const taskRows = useMemo(() => progressRows(currentCase), [currentCase]);
-  const tools = useMemo(() => traceSteps(currentCase?.events ?? []), [currentCase?.events]);
-  const stage = currentCase?.stage ?? 'idle';
-  const meta = STAGE_META[stage];
-  const active = ACTIVE_STAGES.has(stage);
-  const compared = currentCase?.jobs.filter(row => row.candidate).length ?? 0;
-  const candidatePassed = currentCase?.jobs.filter(row => row.candidate?.oracle.passed).length ?? 0;
-  const repairedPassed = currentCase?.jobs.filter(row => row.repaired?.oracle.passed).length ?? 0;
-  const baselineLot = lotCopy(heroRow?.baseline?.oracle.actualLotId);
-  const candidateLot = lotCopy(heroRow?.candidate?.oracle.actualLotId);
-  const hasRegression = currentCase?.jobs.some(row => row.candidate && !row.candidate.oracle.passed) ?? false;
-  const priorDenial = currentCase?.approvalHistory.some(item => item.status === 'denied') ?? false;
-  const servicesReady = health?.ok ?? false;
-
-  let primaryLabel = 'Run the canary';
-  if (busy) primaryLabel = 'Working…';
-  else if (active) primaryLabel = meta.label;
-  else if (stage === 'denied_verified') primaryLabel = 'Request approval again';
-  else if (stage === 'complete') primaryLabel = 'Run a fresh case';
-  else if (stage === 'failed') primaryLabel = 'Reset and retry';
-
-  return (
-    <div className="forge-app">
-      <header className="topbar">
-        <a className="brand" href="/" aria-label="ForgeCanary home">
-          <svg aria-hidden="true" viewBox="0 0 42 42"><path d="M4 4h34v34H4zM12 13h18M12 21h12M12 29h18" /><path d="m27 17 7 4-7 4" /></svg>
-          <span>Forge<b>Canary</b></span>
-        </a>
-        <div className="runtime-status">
-          <i className={servicesReady ? 'online' : ''}></i>
-          <span>{initializing ? 'Connecting' : servicesReady ? 'TrueForge connected' : 'Service attention needed'}</span>
-          <em>/</em>
-          <small>{config?.model ?? 'model —'}</small>
-        </div>
-        <nav>
-          <a href={config?.trueforgeUiUrl ?? 'http://localhost:8790'} target="_blank" rel="noreferrer">Open TrueForge ↗</a>
-          {currentCase?.receipt && <a href={`/api/cases/${encodeURIComponent(currentCase.id)}/receipt`} download>Receipt ↓</a>}
-        </nav>
-      </header>
-
-      <main className="workspace">
-        <aside className="control-rail">
-          <div className="rail-label"><span>RELEASE CASE</span><code>{currentCase ? short(currentCase.id, 11) : 'FC / NEW'}</code></div>
-          <h1>Can this MCP upgrade ship?</h1>
-          <p>Replay real agent work against both versions. Verify the business outcome—not only the tool transcript.</p>
-
-          <button
-            className={`primary-run ${active ? 'running' : ''}`}
-            type="button"
-            onClick={stage === 'denied_verified' ? requestAgain : begin}
-            disabled={busy || active || initializing || !servicesReady}
-          >
-            <span>01</span>
-            <strong>{primaryLabel}</strong>
-            {busy || active ? <LoadingState label="" variant="Drive" /> : <b aria-hidden="true">→</b>}
-          </button>
-
-          <div className="sequence-heading"><span>RUN SEQUENCE</span><span>{Math.min(5, Math.max(0, stageIndex(currentCase)))} / 5</span></div>
-          <div className="sequence-component">
-            <TaskRows variant="List" rows={taskRows} labels={{ completed: 'Done', failed: 'Stopped' }} />
-          </div>
-
-          <div className="capability-heading"><span>TRUEFORGE CAPABILITIES</span><span>LIVE</span></div>
-          <div className="capabilities">
-            <div className="ready"><i></i><span><strong>MCP tools</strong><small>{config?.connectors.length ?? 3} connectors</small></span></div>
-            <div className={currentCase?.capabilities.sandboxCreated ? 'ready' : ''}><i></i><span><strong>Sandbox</strong><small>{currentCase?.capabilities.sandboxCreated ? 'observed' : 'waiting'}</small></span></div>
-            <div className={(currentCase?.capabilities.subagents.length ?? 0) > 0 ? 'ready' : ''}><i></i><span><strong>Subagents</strong><small>{currentCase?.capabilities.subagents.length ?? 0} observed</small></span></div>
-            <div className={stage === 'awaiting_approval' || currentCase?.approval.status === 'allowed' ? 'ready' : ''}><i></i><span><strong>Approval</strong><small>{stage === 'awaiting_approval' ? 'paused' : 'armed'}</small></span></div>
-          </div>
-        </aside>
-
-        <section className="comparison-pane">
-          <div className="pane-heading">
-            <div><span>SEMANTIC REPLAY</span><h2>Same answer. Different reality.</h2></div>
-            <div className={`stage-pill ${meta.tone}`}><i></i>{meta.label}</div>
-          </div>
-
-          {error && <ErrorNotice message={error} />}
-          {!currentCase ? (
-            <div className="empty-stage">
-              <div className="radar" aria-hidden="true"><span></span><span></span><span></span><i></i></div>
-              <div><span>DEMO PATH · 2–3 MINUTES</span><h3>One click becomes a release decision.</h3><p>Six successful jobs go through TrueForge. One invisible behavior change is exposed before it reaches users.</p></div>
-            </div>
-          ) : (
-            <>
-              <div className="protocol-summary">
-                <div><span>WHAT THE AGENT SAW</span><strong>{compared === 0 ? 'Waiting for both versions' : `${compared} matching tool transcripts`}</strong></div>
-                <div className="protocol-chips">
-                  <span className={currentCase.schema?.equal ? 'pass' : ''}>Schema {currentCase.schema ? (currentCase.schema.equal ? 'same' : 'changed') : '—'}</span>
-                  <span className={heroRow?.protocolEqual ? 'pass' : ''}>Arguments {heroRow?.protocolEqual ? 'same' : '—'}</span>
-                  <span className={heroRow?.protocolEqual ? 'pass' : ''}>Response {heroRow?.protocolEqual ? 'same' : '—'}</span>
-                </div>
-              </div>
-
-              <div className="version-grid">
-                <article className="version-card">
-                  <header><span>CURRENT MCP</span><b>v1</b></header>
-                  <div className="call-line"><span>reserve_inventory</span><code>{heroRow ? `${heroRow.orderId} · ${quantityCopy(heroRow.quantity)}` : 'waiting'}</code></div>
-                  <div className="response-line"><span>TOOL RESPONSE</span><strong>{responseCopy(heroRow, 'baseline')}</strong></div>
-                  <div className="reality-line"><span>ACTUAL BATCH</span><strong>{baselineLot.title}</strong><small>{baselineLot.detail}</small></div>
-                </article>
-                <div className="same-marker"><strong>=</strong><span>SAME<br />PROTOCOL</span></div>
-                <article className={`version-card candidate ${hasRegression ? 'has-failure' : ''}`}>
-                  <header><span>PROPOSED MCP</span><b>v2</b></header>
-                  <div className="call-line"><span>reserve_inventory</span><code>{heroRow ? `${heroRow.orderId} · ${quantityCopy(heroRow.quantity)}` : 'waiting'}</code></div>
-                  <div className="response-line"><span>TOOL RESPONSE</span><strong>{responseCopy(heroRow, 'candidate')}</strong></div>
-                  <div className="reality-line"><span>ACTUAL BATCH</span><strong>{candidateLot.title}</strong><small>{candidateLot.detail}</small></div>
-                </article>
-              </div>
-
-              <div className={`divergence ${hasRegression ? 'found' : ''}`}>
-                <b>≠</b>
-                <div><span>WHAT ACTUALLY HAPPENED</span><strong>{hasRegression ? 'The upgrade silently broke inventory rotation.' : 'Independent state check in progress'}</strong><p>{hasRegression ? 'Both tools said “reserved.” The proposed version chose cheaper stock expiring three months later, leaving the older medicine to expire.' : currentCase.summary}</p></div>
-                <aside><span>BUSINESS RULE</span><strong>Ship the batch that expires first</strong><small>FEFO · First Expired, First Out</small></aside>
-              </div>
-
-              {stage === 'denied_verified' && (
-                <div className="denial-proof">
-                  <span className="proof-check">✓</span>
-                  <div><span>DENIAL PROOF</span><strong>“No” changed nothing.</strong><p>Adapter and candidate state hashes are byte-for-byte unchanged.</p></div>
-                  <code>{short(currentCase.approval.adapterStateHashAfter, 16)}</code>
-                  <button type="button" onClick={requestAgain} disabled={busy}>Request the repair again →</button>
-                </div>
-              )}
-
-              {stage === 'complete' && (
-                <div className="completion-proof">
-                  <span>✓</span><div><small>RELEASE VERDICT</small><strong>Approved repair verified · {repairedPassed}/6 outcomes correct</strong></div><a href={`/api/cases/${encodeURIComponent(currentCase.id)}/receipt`} download>Download receipt ↓</a>
-                </div>
-              )}
-
-              <div className="jobs-block">
-                <div className="jobs-heading"><span>HISTORICAL JOB CORPUS</span><span>{compared}/6 compared · {candidatePassed}/6 candidate-correct</span></div>
-                <div className="job-table" role="table" aria-label="Historical replay results">
-                  <div className="job-row job-header" role="row"><span>Job</span><span>Workload</span><span>Protocol</span><span>Business outcome</span><span>After repair</span></div>
-                  {currentCase.jobs.map(row => (
-                    <div className={`job-row ${row.candidate && !row.candidate.oracle.passed ? 'hero-failure' : ''}`} role="row" key={row.orderId}>
-                      <strong>{row.orderId}</strong>
-                      <span><b>{row.productLabel}</b><small>{quantityCopy(row.quantity)}</small></span>
-                      <OutcomeChip state={row.protocolEqual ? 'pass' : 'waiting'} />
-                      <OutcomeChip state={!row.candidate ? 'waiting' : row.candidate.oracle.passed ? 'pass' : 'fail'} />
-                      <OutcomeChip
-                        state={
-                          !row.repaired
-                            ? 'waiting'
-                            : row.repaired.oracle.passed && row.repairedProtocolEqual
-                              ? 'fixed'
-                              : 'fail'
-                        }
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-        </section>
-
-        <aside className="trace-rail">
-          <div className="trace-heading"><div><span>LIVE FLIGHT RECORDER</span><h2>TrueForge trace</h2></div><b>{currentCase?.events.length ?? 0} events</b></div>
-          <div className="trace-legend"><span><i className="agent"></i>Agent</span><span><i className="tool"></i>Tool</span><span><i className="system"></i>System</span></div>
-          <div className="trace-tools">
-            {tools.length > 0 ? (
-              <ToolChips
-                key={`${currentCase?.id}-${currentCase?.events.length ?? 0}`}
-                steps={tools}
-                diffs={[]}
-                labels={{ header: `${currentCase?.events.length ?? 0} persisted events`, more: '' }}
-              />
-            ) : (
-              <div className="trace-empty"><span>00</span><div><strong>No run yet</strong><p>Tool calls, sandbox work, and subagents will appear here.</p></div></div>
-            )}
-          </div>
-          <ol className="raw-events">
-            {[...(currentCase?.events ?? []).slice(-8)].reverse().map(event => (
-              <li key={event.id}><time>{formatTime(event.createdAt)}</time><i className={event.source}></i><span><strong>{event.title}</strong><small>{event.type}</small></span></li>
-            ))}
-          </ol>
-          <footer><span>{currentCase?.sessionIds.length ?? 0} TrueForge sessions</span><span>{currentCase?.capabilities.subagents.length ?? 0} subagents</span></footer>
-        </aside>
-      </main>
-
-      {stage === 'awaiting_approval' && currentCase && (
-        <div className="approval-overlay" role="dialog" aria-modal="true" aria-labelledby="approval-heading">
-          <div className="approval-backdrop"></div>
-          <section className="approval-window">
-            <header><div><span><i></i>TRUEFORGE PAUSED THE WRITE</span><h2 id="approval-heading">A human decides what changes.</h2></div><code>SESSION {short(currentCase.approval.sessionId, 12)}</code></header>
-            <div className="approval-layout">
-              <div className="approval-context">
-                <span>PROPOSED TOOL CALL</span><code>activate_compatibility_adapter</code>
-                <dl>
-                  <div><dt>Change</dt><dd>Restore “expires first” for perishable inventory</dd></div>
-                  <div><dt>Scope</dt><dd>Only reserve_inventory defaults</dd></div>
-                  <div><dt>Candidate code</dt><dd>Untouched</dd></div>
-                  <div><dt>Reversible</dt><dd>Yes</dd></div>
-                </dl>
-                <ul><li><b>01</b><span><strong>Fresh evidence</strong>Six jobs, one verified regression</span></li><li><b>02</b><span><strong>Stale-state guard</strong>Reject if state changed since analysis</span></li><li><b>03</b><span><strong>After-state proof</strong>Hash every result independently</span></li></ul>
-              </div>
-              <div className="beautiful-approval">
-                {busy ? (
-                  <div className="decision-loading"><LoadingState label="TrueForge is processing the decision" variant="Orbit" /><p>The UI will update from persisted session events.</p></div>
-                ) : (
-                  <ApprovalCard
-                    key={`${currentCase.id}-${currentCase.approval.sessionId}-${currentCase.approvalHistory.length}`}
-                    questions={[{
-                      q: priorDenial ? 'The denial is proven. Apply the scoped repair now?' : 'What should TrueForge do with this repair?',
-                      type: 'radio',
-                      options: ['Deny — prove zero mutation', 'Allow — apply, then replay all six jobs']
-                    }]}
-                    labels={{ skip: 'Keep paused', continue: 'Submit decision', send: 'Submit decision', sentMessage: 'Decision sent to TrueForge' }}
-                    autoAdvanceRadio={false}
-                    resettable={false}
-                    onSubmitted={submitDecision}
-                  />
-                )}
-              </div>
-            </div>
-            <footer><p>{priorDenial ? 'The first denial is already proven. Choose Allow to complete the demo.' : 'Recommended demo path: deny first, prove zero mutation, then request and allow a fresh call.'}</p><span>Human-in-the-loop · TrueForge native approval</span></footer>
-          </section>
-        </div>
-      )}
-    </div>
-  );
+  return <div className="forge-shell">
+    <header className="app-header"><a className="brand" href="/"><span className="brand-mark"><Icon name="worker"/></span><span>ForgeCanary</span></a><div className="header-status"><StatusDot status={servicesReady ? 'verified' : 'failed'}/><span>{initializing ? 'Connecting' : servicesReady ? 'TrueForge connected' : 'Services need attention'}</span><code>{short(config?.model, 28)}</code></div><nav><a href={config?.trueforgeUiUrl ?? 'http://localhost:8790'} target="_blank" rel="noreferrer">Open TrueForge ↗</a></nav></header>
+    <main className="release-page">
+      <section className="release-heading"><div><span className="eyebrow">AGENT WORKBENCH</span><h1>Release check: <b>{currentCase?.baselineVersion ?? 'MCP v1'}</b> <em>→</em> <b>{currentCase?.candidateVersion ?? 'MCP v2'}</b></h1></div><button className="button primary start-button" disabled={busy || active || initializing || !servicesReady} onClick={begin}>{runLabel}<span>→</span></button></section>
+      <nav className="phase-rail" aria-label="Release phases">{PHASES.map((phase, index) => <div className={index < activePhase ? 'done' : index === activePhase ? 'active' : ''} key={phase}><span>{index < activePhase ? '✓' : String(index + 1).padStart(2, '0')}</span><strong>{phase}</strong></div>)}</nav>
+      {error && <div className="error-banner" role="alert"><strong>{stage === 'failed' ? 'Stopped safely.' : 'Runtime notice.'}</strong><span>{error}</span></div>}
+      <section ref={workbenchRef} className={`workbench machine-workbench phase-${activePhase}`}>
+        <svg className="machine-conduits" viewBox={`0 0 ${machineGeometry.width} ${machineGeometry.height}`} aria-hidden="true">
+          {machineGeometry.savedOutput && machineGeometry.parentInput && <GlassConduit
+            d={roundedMachineRoute(machineGeometry.savedOutput, machineGeometry.parentInput, (machineGeometry.savedOutput.x + machineGeometry.parentInput.x) / 2)}
+            active={Boolean(currentCase?.parentRunId)}
+            flowing={anyWorkerWorking}
+            packetCount={1}
+            duration={.95}
+          />}
+          {parentOutput && conduitBusX !== undefined && measuredWorkers.length > 0 && <>
+            <GlassConduit d={`M ${parentOutput.x} ${parentOutput.y} H ${conduitBusX} M ${conduitBusX} ${measuredWorkers[0].point.y} V ${measuredWorkers[measuredWorkers.length - 1].point.y}`}/>
+            {measuredWorkers.map(({ job, point }, index) => {
+              const moving = job.workerStatus === 'spawning' || job.workerStatus === 'running';
+              const held = job.workerStatus === 'held' || job.workerStatus === 'failed';
+              return <g key={job.replayJobId}>
+                <GlassConduit d={`M ${conduitBusX} ${point.y} H ${point.x}`}/>
+                <GlassConduit d={roundedMachineRoute(parentOutput, point, conduitBusX)} structure={false} active flowing={moving} tone={held ? 'coral' : 'green'} packetCount={3} duration={.95 + index * .035}/>
+              </g>;
+            })}
+            <g className="conduit-junctions">
+              {measuredWorkers.map(({ job, point }) => <g key={job.replayJobId} transform={`translate(${conduitBusX} ${point.y})`}><circle className="junction-shell" r="6"/><circle className="junction-glass" r="3.2"/></g>)}
+            </g>
+          </>}
+        </svg>
+        <article ref={savedAgentRef} className="machine-node saved-agent-machine" aria-label="Reusable saved agent configuration">
+          <MachineChassis ports={['right']}/>
+          <div className="machine-copy saved-agent-copy"><div className="module-label"><Icon name="agent"/> SAVED AGENT</div><div className="agent-core"><span className="agent-glyph"><Icon name="agent"/></span><div><h2>{config?.savedAgentName ?? 'ForgeCanary Replay Worker'}</h2><p>Reusable configuration</p></div></div><dl className="module-spec"><div><dt>MODEL</dt><dd>{short(config?.model, 20)}</dd></div><div><dt>REASONING</dt><dd>low</dd></div><div><dt>CONNECTORS</dt><dd>{config?.connectors.length ?? 3} armed</dd></div><div><dt>APPROVAL</dt><dd>writes pause</dd></div></dl><div className="persistent-tag"><StatusDot status="verified"/> Preserved between runs</div></div>
+        </article>
+        <article ref={parentControllerRef} className={`machine-node parent-controller-machine ${currentCase?.parentRunId ? 'is-live' : ''}`} aria-label="Parent release run">
+          <MachineChassis ports={['left', 'right']}/>
+          <div className="machine-copy parent-controller-copy"><div className="module-label"><Icon name="run"/> PARENT RELEASE RUN</div><div className="parent-core"><span><Icon name="run"/></span><div><h2>{currentCase?.historyTitle ?? 'New release check'}</h2><p>{currentCase?.parentRunId ? `Run ${short(currentCase.parentRunId, 12)}` : 'Created only after start'}</p></div></div><div className="parent-state"><StatusDot status={parentStatus}/><span>{currentCase?.summary ?? 'Waiting for operator'}</span></div><div className="parent-meta"><span>ONE PARENT</span><span>{jobs.length}/6 SPAWNED</span></div></div>
+        </article>
+        <section className="worker-bank" aria-label="Spawned replay workers" aria-live="polite"><header><div><span className="eyebrow">LIVE REPLAY BANK</span><h2>Workers appear as TrueForge spawns them.</h2></div><span className="worker-count">{jobs.length}/6 spawned · {jobs.filter(job => job.workerStatus === 'closed').length}/6 closed</span></header><div className="worker-stack">{jobs.length === 0 && <div className="worker-empty"><Icon name="worker"/><span><strong>No replay workers spawned</strong><small>Starting a release check creates each isolated worker when its job is dispatched.</small></span></div>}{jobs.map((job, index) => <GlossyWorkerTask nodeRef={node => { if (node) workerRefs.current.set(job.replayJobId, node); else workerRefs.current.delete(job.replayJobId); }} job={job} index={index} selected={selectedOrder === job.orderId} key={job.replayJobId} onSelect={() => setSelectedOrder(selectedOrder === job.orderId ? null : job.orderId)}/>)}</div></section>
+        <DetailPanel value={currentCase} selected={selected} busy={busy} onDecision={submitDecision} onRetry={requestAgain}/>
+      </section>
+      <details className="run-inspector"><summary><span><Icon name="history"/><strong>{currentCase?.historyTitle ?? 'Release check history'}</strong><small>{currentCase ? `${jobs.length} replay jobs · ${currentCase.events.length} persisted events · ${currentCase.releaseHistory?.length ?? 0} prior checks` : 'One meaningful entry per release check'}</small></span><span>Inspect parent run <b>⌄</b></span></summary><div className="inspector-grid">{ORDER_IDS.map((orderId, index) => { const job = jobs[index]; const latest = job?.repaired ?? job?.candidate ?? job?.baseline; return <article key={orderId}><header><StatusDot status={job?.workerStatus ?? 'queued'}/><strong>{orderId}</strong><span>{job?.finalVerdict ?? 'queued'}</span></header><dl><div><dt>Replay job ID</dt><dd>{job?.replayJobId ?? `replay_${index + 1}`}</dd></div><div><dt>Tool calls</dt><dd>{[job?.baseline, job?.candidate, job?.repaired].filter(Boolean).length}</dd></div><div><dt>Tool</dt><dd>{latest?.toolName ?? '—'}</dd></div><div><dt>Final result</dt><dd>{job?.currentTask ?? 'Waiting for run'}</dd></div></dl>{latest && <details className="job-payload"><summary>Arguments & result</summary><code>{JSON.stringify(latest.toolArguments)}</code><code>{JSON.stringify(latest.toolResponse)}</code></details>}</article>; })}{currentCase && currentCase.approvalHistory.length > 0 && <article className="approval-history"><header><StatusDot status="verified"/><strong>Approval history</strong><span>{currentCase.approvalHistory.length} decisions</span></header>{currentCase.approvalHistory.map((approval, index) => <p key={`${approval.status}-${index}`}><b>{approval.status}</b><code>{approval.toolName ?? 'activate_compatibility_adapter'}</code></p>)}</article>}</div></details>
+      <footer className="retention-bar"><span><Icon name="history"/><strong>Retention</strong></span><span>Keep release summary</span><span>Keep receipt</span><span>Archive worker detail after proof</span><span>Hide low-level run noise</span></footer>
+    </main>
+  </div>;
 }

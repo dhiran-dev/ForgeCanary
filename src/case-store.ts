@@ -25,6 +25,9 @@ const ALLOWED_TRANSITIONS: Record<CaseStage, readonly CaseStage[]> = {
 export interface NewCaseInput {
   mode: 'live' | 'test';
   model: string;
+  savedAgentId?: string;
+  baselineVersion?: string;
+  candidateVersion?: string;
 }
 
 export interface NewTraceEvent {
@@ -73,6 +76,18 @@ export class CaseStore {
     if (this.current && !TERMINAL_STAGES.has(this.current.stage)) {
       throw new Error(`Case ${this.current.id} is already running in stage ${this.current.stage}`);
     }
+    const releaseHistory = this.current?.releaseHistory ? [...this.current.releaseHistory] : [];
+    if (this.current && TERMINAL_STAGES.has(this.current.stage) && !releaseHistory.some(item => item.caseId === this.current?.id)) {
+      releaseHistory.push({
+        caseId: this.current.id,
+        historyTitle: this.current.historyTitle ?? 'Release check',
+        parentRunId: this.current.parentRunId ?? null,
+        candidateVersion: this.current.candidateVersion ?? 'MCP v2',
+        finalVerdict: this.current.finalVerdict,
+        completedAt: this.current.updatedAt,
+        receiptHash: this.current.receipt?.receiptHash ?? null
+      });
+    }
     const now = new Date().toISOString();
     this.current = {
       version: 1,
@@ -80,6 +95,10 @@ export class CaseStore {
       stage: 'idle',
       mode: input.mode,
       model: input.model,
+      savedAgentId: input.savedAgentId ?? 'agent_test',
+      baselineVersion: input.baselineVersion ?? 'MCP v1',
+      candidateVersion: input.candidateVersion ?? 'MCP v2',
+      historyTitle: `Release check: ${input.baselineVersion ?? 'MCP v1'} → ${input.candidateVersion ?? 'MCP v2'}`,
       createdAt: now,
       updatedAt: now,
       sequence: 0,
@@ -88,8 +107,17 @@ export class CaseStore {
       sessionIds: [],
       approval: { status: 'not_requested' },
       approvalHistory: [],
+      receiptHistory: [],
+      releaseHistory,
       capabilities: { sandboxCreated: false, subagents: [] },
-      events: []
+      events: [],
+      retention: {
+        releaseSummary: 'keep',
+        receipt: 'keep',
+        workerDetail: 'archive_after_receipt',
+        childRuns: 'hidden',
+        archivedWorkerEventCount: 0
+      }
     };
     this.persist();
     return this.get() as ForgeCanaryCase;
@@ -142,6 +170,13 @@ export class CaseStore {
     const failedAtStage = current.stage;
     current.stage = 'failed';
     current.summary = 'The canary stopped safely. No unapproved repair was applied.';
+    current.finalVerdict = 'blocked';
+    for (const job of current.jobs) {
+      if (job.workerStatus === 'running') {
+        job.workerStatus = 'failed';
+        job.currentTask = 'Stopped safely';
+      }
+    }
     current.error = {
       message: error instanceof Error ? error.message : String(error),
       stage: failedAtStage,

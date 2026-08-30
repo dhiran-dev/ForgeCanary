@@ -8,6 +8,7 @@ export const MODEL_NAME = 'forgecanary-deterministic';
 
 export interface JobTranscript {
   sessionId: string;
+  turnId?: string;
   userMessage: string;
   streamedEventTypes: string[];
   persistedEventTypes: string[];
@@ -18,6 +19,8 @@ export interface JobTranscript {
 
 interface EventShape {
   type: string;
+  turnId?: string;
+  state?: { status?: string; message?: string; reason?: unknown };
   input?: Array<{ type?: string; content?: string }>;
   toolCalls?: Array<{
     function?: { name?: string; arguments?: string };
@@ -29,6 +32,7 @@ export interface InventoryJobOptions {
   modelName?: string;
   reasoningEffort?: string;
   onEvent?: (event: unknown, sessionId: string) => void | Promise<void>;
+  parentSessionId?: string;
 }
 
 export function makeClient(): TrueForge {
@@ -73,7 +77,9 @@ export async function runInventoryJob(
   userMessage: string,
   options: InventoryJobOptions = {}
 ): Promise<JobTranscript> {
-  const { data: session } = await client.sessions.create({
+  const { data: session } = options.parentSessionId
+    ? { data: { id: options.parentSessionId } }
+    : await client.sessions.create({
     agent: {
       spec: {
         model: {
@@ -106,12 +112,25 @@ export async function runInventoryJob(
   });
 
   const streamedEventTypes: string[] = [];
+  let turnId: string | undefined;
   const stream = await client.sessions.createTurnStream(session.id, {
-    input: [{ type: 'user.message', content: userMessage }]
+    input: [{ type: 'user.message', content: userMessage }],
+    ...(options.parentSessionId ? { previousTurnId: 'none' as const } : {})
   });
   for await (const { data: event } of stream.withMetadata()) {
     streamedEventTypes.push(event.type);
+    const shape = event as unknown as EventShape;
+    if (shape.type === 'turn.created') turnId = shape.turnId;
+    if (shape.type === 'turn.done' && shape.state?.status !== 'done') {
+      const detail = shape.state?.message ?? JSON.stringify(shape.state?.reason ?? shape.state?.status);
+      throw new Error(`TrueForge replay turn ${shape.state?.status ?? 'failed'}: ${detail}`);
+    }
     await options.onEvent?.(event, session.id);
+  }
+
+  if (options.parentSessionId) {
+    if (!turnId) throw new Error(`TrueForge parent session ${session.id} did not identify the replay turn`);
+    return readInventoryJob(client, session.id, streamedEventTypes, turnId);
   }
 
   return readInventoryJob(client, session.id, streamedEventTypes);
@@ -120,10 +139,14 @@ export async function runInventoryJob(
 export async function readInventoryJob(
   client: TrueForge,
   sessionId: string,
-  streamedEventTypes: string[] = []
+  streamedEventTypes: string[] = [],
+  lastTurnId?: string
 ): Promise<JobTranscript> {
   const events: EventShape[] = [];
-  for await (const item of await client.sessions.listEvents(sessionId, { limit: 100 })) {
+  for await (const item of await client.sessions.listEvents(sessionId, {
+    limit: 100,
+    ...(lastTurnId ? { lastTurnId } : {})
+  })) {
     events.push(item.event as unknown as EventShape);
   }
   const created = events.find(event => event.type === 'turn.created');
@@ -137,6 +160,7 @@ export async function readInventoryJob(
 
   return {
     sessionId,
+    ...(lastTurnId ? { turnId: lastTurnId } : {}),
     userMessage: persistedUserMessage,
     streamedEventTypes,
     persistedEventTypes: events.map(event => event.type),
