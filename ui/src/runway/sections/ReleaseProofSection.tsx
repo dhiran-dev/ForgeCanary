@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { RunwayView } from '../runway-state';
+import { releaseProofRoutePaths } from './release-proof-geometry';
 import { deriveReleaseProofState } from './release-proof-state';
 import './release-proof-section.css';
 
@@ -152,19 +153,19 @@ export function ReleaseProofSection({
         <figure className={`runway-story-visual proof-story-scene${hardwareState === 'ready' ? ' is-hardware-ready' : hardwareState === 'error' ? ' is-hardware-error' : ''}`} aria-label={figureLabel}>
           <svg className="runway-story-conduits proof-story-conduits" viewBox="0 0 1672 941" aria-hidden="true">
             <defs>
-              <path id="proof-route-current" d="M 796 195 H 842 Q 868 195 868 224 V 284 Q 868 309 895 309 H 915" />
-              <path id="proof-route-upgrade" d="M 796 438 H 849 Q 873 438 873 414 V 384 Q 873 361 899 361 H 915" />
-              <path id="proof-route-safety" d="M 1182 309 H 1211 Q 1237 309 1237 283 V 224 Q 1237 195 1264 195 H 1293" />
-              <path id="proof-route-reality" d="M 1182 361 H 1210 Q 1237 361 1237 387 V 411 Q 1237 438 1264 438 H 1293" />
-              <path id="proof-route-trunk-left" d="M 1049 506 V 603 H 611" />
-              <path id="proof-route-trunk-right" d="M 1049 506 V 603 H 1418" />
-              <path id="proof-route-drop-1" d="M 611 603 H 541 V 652" />
-              <path id="proof-route-drop-2" d="M 720 603 V 652" />
-              <path id="proof-route-drop-3" d="M 899 603 V 652" />
-              <path id="proof-route-drop-4" d="M 1079 603 V 652" />
-              <path id="proof-route-drop-5" d="M 1259 603 V 652" />
-              <path id="proof-route-drop-6" d="M 1439 603 H 1419 V 652" />
-              <path id="proof-route-outcome" d="M 454 720 H 1642" />
+              <path id="proof-route-current" d={releaseProofRoutePaths.current} />
+              <path id="proof-route-upgrade" d={releaseProofRoutePaths.upgrade} />
+              <path id="proof-route-safety" d={releaseProofRoutePaths.safety} />
+              <path id="proof-route-reality" d={releaseProofRoutePaths.reality} />
+              <path id="proof-route-trunk-left" d={releaseProofRoutePaths.trunkLeft} />
+              <path id="proof-route-trunk-right" d={releaseProofRoutePaths.trunkRight} />
+              <path id="proof-route-drop-1" d={releaseProofRoutePaths.drop1} />
+              <path id="proof-route-drop-2" d={releaseProofRoutePaths.drop2} />
+              <path id="proof-route-drop-3" d={releaseProofRoutePaths.drop3} />
+              <path id="proof-route-drop-4" d={releaseProofRoutePaths.drop4} />
+              <path id="proof-route-drop-5" d={releaseProofRoutePaths.drop5} />
+              <path id="proof-route-drop-6" d={releaseProofRoutePaths.drop6} />
+              <path id="proof-route-outcome" d={releaseProofRoutePaths.outcome} />
             </defs>
 
             <ProofTube href="#proof-route-current" />
