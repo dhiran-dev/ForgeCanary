@@ -1,6 +1,7 @@
 import type { RunwayView } from './runway-state';
 import './release-runway-sections.css';
 import EvidenceSection from './sections/EvidenceSection';
+import HumanControlSection from './sections/HumanControlSection';
 import ReplaySection from './sections/ReplaySection';
 
 type ReleaseRunwaySectionsProps = {
@@ -18,6 +19,7 @@ export default function ReleaseRunwaySections({
     <div className="runway-story" aria-label="How ForgeCanary checks a release">
       <ReplaySection view={view} reducedMotion={reducedMotion} illustrative={illustrative} />
       <EvidenceSection view={view} reducedMotion={reducedMotion} />
+      <HumanControlSection view={view} reducedMotion={reducedMotion} illustrative={illustrative} />
     </div>
   );
 }
