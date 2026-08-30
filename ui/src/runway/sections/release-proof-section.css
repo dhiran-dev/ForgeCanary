@@ -231,6 +231,7 @@
 }
 
 .proof-story-node > div {
+  width: 100%;
   position: absolute;
   display: flex;
   flex-direction: column;
@@ -245,7 +246,7 @@
 .proof-story-node--upgrade { top: 37.9%; left: 35.95%; width: 11.7%; height: 21.2%; }
 .proof-story-node--safety { top: 12.1%; left: 77.1%; width: 11.8%; height: 21.8%; }
 .proof-story-node--reality { top: 37.9%; left: 77.1%; width: 11.8%; height: 21.2%; }
-.proof-story-node--lead { top: 25.6%; left: 54.65%; width: 15%; height: 28.4%; }
+.proof-story-node--lead { top: 25.6%; left: 54.95%; width: 15%; height: 28.4%; }
 
 .proof-story-node--current > div,
 .proof-story-node--safety > div { inset: 71.5% 0 0; }
@@ -257,15 +258,16 @@
 
 .proof-story-icon {
   position: absolute;
+  top: 29%;
+  left: 50%;
   display: grid;
   place-items: center;
   color: #bababb;
+  transform: translate(-50%, -50%);
 }
 
 .proof-story-icon--down,
 .proof-story-icon--up {
-  top: 14%;
-  left: 36%;
   width: 29%;
   aspect-ratio: 1;
   border: 1px solid #a3a4a5;
@@ -274,8 +276,6 @@
 }
 
 .proof-story-icon--shield {
-  top: 12%;
-  left: 35%;
   width: 30%;
   aspect-ratio: 0.9;
   border: 2px solid #bababb;
@@ -291,8 +291,6 @@
 }
 
 .proof-story-icon--lock {
-  top: 17%;
-  left: 37%;
   width: 26%;
   height: 29%;
   border: 2px solid #bababb;
@@ -319,11 +317,11 @@
 
 .proof-story-lead-mark {
   position: absolute;
-  top: 28%;
-  left: 37%;
+  top: 41%;
+  left: 50%;
   width: 26%;
   height: 26%;
-  transform: rotate(90deg);
+  transform: translate(-50%, -50%) rotate(90deg);
 }
 
 .proof-story-lead-mark i {
@@ -407,6 +405,11 @@
   letter-spacing: 0.04em;
   line-height: 1.45;
   text-align: center;
+}
+
+.proof-story-safe-gate > span {
+  width: 100%;
+  display: block;
 }
 
 .proof-story-safe-gate i {
