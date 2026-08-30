@@ -464,7 +464,32 @@
     transform: translateX(50%);
     transform-origin: center;
   }
-  .replay-story__agent-label { width: 12%; height: 11%; }
+  .replay-story__agent-label {
+    width: 12%;
+    height: 18%;
+    gap: 1px;
+  }
+  .replay-story__agent-label strong {
+    font-size: 0;
+    line-height: 1;
+    white-space: normal;
+  }
+  .replay-story__agent-label strong::after {
+    font-size: 5px;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+  }
+  .replay-story__agent-label--old strong::after { content: "OLD"; }
+  .replay-story__agent-label--upgrade strong::after { content: "UPGRADE"; }
+  .replay-story__agent-label--safety strong::after { content: "SAFETY"; }
+  .replay-story__agent-label--reality strong::after { content: "REALITY"; }
+  .replay-story__agent-label span {
+    width: 100%;
+    display: block;
+    font-size: 4px;
+    line-height: 1.08;
+    white-space: normal;
+  }
   .replay-story__steps { right: 20px; left: 20px; }
   .replay-story__steps li > span { font-size: 8px; }
 }
