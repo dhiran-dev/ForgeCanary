@@ -89,31 +89,26 @@ export default function ReleaseRunwayPrototype() {
 
   const view = useMemo(() => deriveRunwayView(currentCase), [currentCase]);
   const error = activeRunwayError(errors);
-  const servicesReady = Boolean(config && health?.ok);
+  const servicesReady = Boolean(config && health?.ok && !error);
 
   const readyScene = useCallback(() => setSceneReady(true), []);
-  const statusLabel = error ? 'Replay system standing by' : view.label;
-  const statusDetail = error ? 'Release remains untouched' : view.detail;
-  const liveLabel = error
-    ? 'LIVE CHECK STOPPED SAFELY'
-    : view.isRunning
-      ? 'LIVE CHECK IN PROGRESS'
-      : view.phase === 'complete'
-        ? 'LIVE CHECK COMPLETE'
-        : 'LIVE RELEASE CHECK READY';
 
   return (
     <div className={`runway-page runway-phase-${view.phase}`}>
       <header className="runway-nav">
         <a className="runway-brand" href="/runway" aria-label="ForgeCanary home">ForgeCanary</a>
         <div className="runway-nav-actions">
-          <div className={`runway-connection ${servicesReady ? 'online' : ''}`}>
+          <div
+            className={`runway-connection ${servicesReady ? 'online' : ''}`}
+            role="status"
+            aria-live="polite"
+          >
             <i />
             <span>{initializing ? 'CONNECTING TRUEFORGE' : servicesReady ? 'TRUEFORGE CONNECTED' : 'TRUEFORGE ATTENTION'}</span>
-            {config?.model && <small>{config.model}</small>}
+            {(error || config?.model) && (
+              <small className={error ? 'is-error' : ''} title={error ?? undefined}>{error ?? config?.model}</small>
+            )}
           </div>
-          <span className="runway-nav-rule" aria-hidden="true" />
-          <a className="runway-menu" href="/" aria-label="Open the live operator console"><i /><i /><i /></a>
         </div>
       </header>
 
@@ -126,31 +121,10 @@ export default function ReleaseRunwayPrototype() {
             touches tomorrow.
           </h1>
           <p>ForgeCanary replays the same jobs, checks what really happened, and stops silent changes.</p>
-          <a className="runway-scroll-cue" href="#how">
+          <a className="runway-scroll-cue" href="#replay">
             <span>SCROLL BELOW</span>
             <i aria-hidden="true" />
           </a>
-          <div
-            className="runway-live-row"
-            aria-live="polite"
-            aria-label={`${liveLabel}. ${statusLabel}. ${statusDetail}`}
-          >
-            <span className="runway-play" aria-hidden="true"><i /></span>
-            <div className="runway-live-status">
-              <strong>{view.isRunning ? 'Live check in progress' : statusLabel}</strong>
-              <div className="runway-meter" aria-hidden="true">
-                {[0, 1, 2, 3].map(index => <i key={index} className={index <= view.phaseIndex ? 'active' : ''} />)}
-              </div>
-            </div>
-            <span className="runway-live-divider" aria-hidden="true" />
-            <div className="runway-live-summary">
-              <span className="runway-target" aria-hidden="true"><i /></span>
-              <code>
-                <strong>{view.jobsReplayed} JOBS REPLAYED</strong>
-                <b>{view.changesFound} CHANGE{view.changesFound === 1 ? '' : 'S'} FOUND</b>
-              </code>
-            </div>
-          </div>
         </div>
 
         <section className={`runway-stage ${sceneReady ? 'scene-ready' : ''}`} aria-label="Live release compatibility check">
@@ -160,12 +134,6 @@ export default function ReleaseRunwayPrototype() {
             changesFound={view.changesFound}
             onReady={readyScene}
           />
-          <div className="runway-stage-caption">
-            <strong>
-              {view.jobsReplayed} JOBS REPLAYED <em>/</em>{' '}
-              <b>{view.phase === 'complete' ? 'SAFE TO SHIP' : `${view.changesFound} CHANGE${view.changesFound === 1 ? '' : 'S'} FOUND`}</b>
-            </strong>
-          </div>
         </section>
 
         <ol className="runway-steps" id="how">
@@ -178,8 +146,7 @@ export default function ReleaseRunwayPrototype() {
       <ReleaseRunwaySections
         view={view}
         reducedMotion={reducedMotion}
-        illustrative={!currentCase}
-        receiptUrl={currentCase?.receipt ? `/api/cases/${encodeURIComponent(currentCase.id)}/receipt` : undefined}
+        illustrative={!currentCase && !error}
         trueforgeUrl={config?.trueforgeUiUrl}
       />
     </div>

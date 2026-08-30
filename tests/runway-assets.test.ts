@@ -25,4 +25,26 @@ describe('runway story image plates', () => {
       expect(bytes[25], `${asset} must use PNG color type 6 (RGBA)`).toBe(6);
     }
   });
+
+  it('reveals conduit scenes only after the matching hardware plate loads', () => {
+    const prototype = readFileSync(join(process.cwd(), 'ui/src/runway/ReleaseRunwayPrototype.tsx'), 'utf8');
+    const runwayStyles = readFileSync(join(process.cwd(), 'ui/src/runway/release-runway.css'), 'utf8');
+    const sections = [
+      join(process.cwd(), 'ui/src/runway/sections/HumanControlSection.tsx'),
+      join(process.cwd(), 'ui/src/runway/sections/ReleaseProofSection.tsx')
+    ].map(path => readFileSync(path, 'utf8'));
+
+    expect(prototype).toContain('href="#replay"');
+    expect(runwayStyles).toContain('body:has(.runway-page)');
+    expect(runwayStyles).toContain('overflow-y: auto');
+
+    for (const source of sections) {
+      expect(source).toContain('runway-story-visual');
+      expect(source).toContain("hardwareState === 'ready' ? ' is-hardware-ready'");
+      expect(source).toContain("hardwareState === 'error' ? ' is-hardware-error'");
+      expect(source).toContain('loading="eager"');
+      expect(source).toContain("onLoad={() => setHardwareState('ready')}");
+      expect(source).toContain("onError={() => setHardwareState('error')}");
+    }
+  });
 });

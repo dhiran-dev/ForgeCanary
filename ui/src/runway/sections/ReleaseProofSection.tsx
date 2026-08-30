@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { RunwayView } from '../runway-state';
 import { deriveReleaseProofState } from './release-proof-state';
 import './release-proof-section.css';
@@ -6,7 +7,6 @@ type ReleaseProofSectionProps = {
   view: RunwayView;
   reducedMotion: boolean;
   illustrative: boolean;
-  receiptUrl?: string;
   trueforgeUrl?: string;
 };
 
@@ -71,11 +71,10 @@ type ProofActionProps = {
   href?: string;
   label: string;
   variant: 'primary' | 'secondary';
-  download?: boolean;
   external?: boolean;
 };
 
-function ProofAction({ href, label, variant, download = false, external = false }: ProofActionProps) {
+function ProofAction({ href, label, variant, external = false }: ProofActionProps) {
   const className = `proof-story-action proof-story-action--${variant}`;
 
   if (!href) {
@@ -87,7 +86,6 @@ function ProofAction({ href, label, variant, download = false, external = false 
       className={className}
       href={href}
       data-action
-      download={download || undefined}
       target={external ? '_blank' : undefined}
       rel={external ? 'noreferrer' : undefined}
     >
@@ -100,9 +98,9 @@ export function ReleaseProofSection({
   view,
   reducedMotion,
   illustrative,
-  receiptUrl,
   trueforgeUrl
 }: ReleaseProofSectionProps) {
+  const [hardwareState, setHardwareState] = useState<'loading' | 'ready' | 'error'>('loading');
   const {
     displayJobs,
     verifiedCells,
@@ -146,12 +144,11 @@ export function ReleaseProofSection({
           </div>
 
           <div className="proof-story-actions">
-            <ProofAction href={receiptUrl} label="DOWNLOAD RECEIPT" variant="primary" download />
             <ProofAction href={trueforgeUrl} label="VIEW TRUEFORGE RUN" variant="secondary" external />
           </div>
         </div>
 
-        <figure className="proof-story-scene" aria-label={figureLabel}>
+        <figure className={`runway-story-visual proof-story-scene${hardwareState === 'ready' ? ' is-hardware-ready' : hardwareState === 'error' ? ' is-hardware-error' : ''}`} aria-label={figureLabel}>
           <svg className="runway-story-conduits proof-story-conduits" viewBox="0 0 1672 941" aria-hidden="true">
             <defs>
               <path id="proof-route-current" d="M 796 195 H 842 Q 868 195 868 224 V 284 Q 868 309 895 309 H 915" />
@@ -209,10 +206,17 @@ export function ReleaseProofSection({
             src="/images/runway-sections/proof/hardware-plate.png"
             width="1672"
             height="941"
-            loading="lazy"
+            loading="eager"
             decoding="async"
+            onLoad={() => setHardwareState('ready')}
+            onError={() => setHardwareState('error')}
             alt=""
           />
+
+          <div className="runway-story-asset-fallback" role="status">
+            <strong>HARDWARE DIAGRAM UNAVAILABLE</strong>
+            <span>The proof state remains available in the release summary.</span>
+          </div>
 
           <div className="proof-story-node proof-story-node--current">
             <span className="proof-story-icon proof-story-icon--down" aria-hidden="true">↓</span>

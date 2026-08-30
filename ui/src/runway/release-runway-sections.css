@@ -116,6 +116,48 @@
   user-select: none;
 }
 
+.runway-story-visual {
+  opacity: 0;
+}
+
+.runway-story-visual.is-hardware-ready,
+.runway-story-visual.is-hardware-error {
+  opacity: 1;
+  transition: opacity 160ms var(--story-ease-out);
+}
+
+.runway-story-asset-fallback {
+  display: none;
+}
+
+.runway-story-visual.is-hardware-error > :not(.runway-story-asset-fallback) {
+  visibility: hidden;
+}
+
+.runway-story-visual.is-hardware-error .runway-story-asset-fallback {
+  position: absolute;
+  inset: 36% 18% auto;
+  z-index: 6;
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+  border: 1px solid var(--story-slate);
+  background: var(--story-carbon);
+  color: var(--story-silver);
+  font-family: var(--runway-font-system);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.runway-story-asset-fallback strong {
+  color: var(--story-green);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.13em;
+}
+
 .runway-story-conduits {
   width: 100%;
   height: 100%;
@@ -151,6 +193,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .runway-story-visual.is-hardware-ready,
+  .runway-story-visual.is-hardware-error {
+    transition: none;
+  }
+
   .runway-story-packet {
     display: none;
   }

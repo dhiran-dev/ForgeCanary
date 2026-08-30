@@ -2,6 +2,7 @@ export type ReleaseProofView = {
   phase: 'ready' | 'current' | 'replay' | 'compare' | 'blocked' | 'repair' | 'complete' | 'failed';
   jobsReplayed: number;
   repairedJobs: number;
+  isRunning: boolean;
 };
 
 export type ReleaseProofState = {
@@ -41,7 +42,7 @@ export function deriveReleaseProofState(
       : view.phase === 'repair'
         ? 'verifying'
         : 'pending';
-  const signalIsMoving = !reducedMotion && (illustrative || view.phase === 'repair');
+  const signalIsMoving = !reducedMotion && (illustrative || view.isRunning);
 
   const receiptHeader = illustrative
     ? 'DEMO / PROOF RECEIPT READY'

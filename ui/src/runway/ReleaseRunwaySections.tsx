@@ -9,7 +9,6 @@ type ReleaseRunwaySectionsProps = {
   view: RunwayView;
   reducedMotion: boolean;
   illustrative: boolean;
-  receiptUrl?: string;
   trueforgeUrl?: string;
 };
 
@@ -17,7 +16,6 @@ export default function ReleaseRunwaySections({
   view,
   reducedMotion,
   illustrative,
-  receiptUrl,
   trueforgeUrl
 }: ReleaseRunwaySectionsProps) {
   return (
@@ -29,7 +27,6 @@ export default function ReleaseRunwaySections({
         view={view}
         reducedMotion={reducedMotion}
         illustrative={illustrative}
-        receiptUrl={receiptUrl}
         trueforgeUrl={trueforgeUrl}
       />
     </div>
