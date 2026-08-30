@@ -92,11 +92,39 @@ function DetailPanel({ value, selected, busy, onDecision, onRetry }: { value: Fo
   </aside>;
 }
 
+function ParentRunInspectorModal({ value, jobs, onClose }: { value: ForgeCanaryCase | null; jobs: CaseJobRow[]; onClose: () => void }) {
+  const dialogRef = useRef<HTMLDialogElement | null>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    dialog.showModal();
+    return () => { if (dialog.open) dialog.close(); };
+  }, []);
+
+  return <dialog
+    ref={dialogRef}
+    className="parent-run-modal"
+    aria-labelledby="parent-run-modal-title"
+    onClose={onClose}
+    onClick={event => { if (event.target === event.currentTarget) event.currentTarget.close(); }}
+  >
+    <header className="parent-run-modal-header">
+      <div><span className="eyebrow">PARENT RELEASE RUN</span><h2 id="parent-run-modal-title">{value?.historyTitle ?? 'Release check history'}</h2><p>{value ? `${jobs.length} replay jobs · ${value.events.length} persisted events · ${value.releaseHistory?.length ?? 0} prior checks` : 'One meaningful entry per release check'}</p></div>
+      <button className="parent-run-modal-close" type="button" aria-label="Close parent run inspector" onClick={() => dialogRef.current?.close()} autoFocus>×</button>
+    </header>
+    <div className="parent-run-modal-body">
+      <div className="inspector-grid">{ORDER_IDS.map((orderId, index) => { const job = jobs[index]; const latest = job?.repaired ?? job?.candidate ?? job?.baseline; return <article key={orderId}><header><StatusDot status={job?.workerStatus ?? 'queued'}/><strong>{orderId}</strong><span>{job?.finalVerdict ?? 'queued'}</span></header><dl><div><dt>Replay job ID</dt><dd>{job?.replayJobId ?? `replay_${index + 1}`}</dd></div><div><dt>Tool calls</dt><dd>{[job?.baseline, job?.candidate, job?.repaired].filter(Boolean).length}</dd></div><div><dt>Tool</dt><dd>{latest?.toolName ?? '—'}</dd></div><div><dt>Final result</dt><dd>{job?.currentTask ?? 'Waiting for run'}</dd></div></dl>{latest && <details className="job-payload"><summary>Arguments & result</summary><code>{JSON.stringify(latest.toolArguments)}</code><code>{JSON.stringify(latest.toolResponse)}</code></details>}</article>; })}{value && value.approvalHistory.length > 0 && <article className="approval-history"><header><StatusDot status="verified"/><strong>Approval history</strong><span>{value.approvalHistory.length} decisions</span></header>{value.approvalHistory.map((approval, index) => <p key={`${approval.status}-${index}`}><b>{approval.status}</b><code>{approval.toolName ?? 'activate_compatibility_adapter'}</code></p>)}</article>}</div>
+    </div>
+  </dialog>;
+}
+
 export default function App() {
   const [config, setConfig] = useState<PublicConfig | null>(null);
   const [health, setHealth] = useState<HealthState | null>(null);
   const [currentCase, setCurrentCase] = useState<ForgeCanaryCase | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
   const [busy, setBusy] = useState(false); const [initializing, setInitializing] = useState(true); const [error, setError] = useState<string | null>(null);
   const refreshTimer = useRef<number | null>(null);
   const workbenchRef = useRef<HTMLElement | null>(null);
@@ -209,8 +237,8 @@ export default function App() {
         <section className="worker-bank" aria-label="Spawned replay workers" aria-live="polite"><header><div><span className="eyebrow">LIVE REPLAY BANK</span><h2>Workers appear as TrueForge spawns them.</h2></div><span className="worker-count">{jobs.length}/6 spawned · {jobs.filter(job => job.workerStatus === 'closed').length}/6 closed</span></header><div className="worker-stack">{jobs.length === 0 && <div className="worker-empty"><Icon name="worker"/><span><strong>No replay workers spawned</strong><small>Starting a release check creates each isolated worker when its job is dispatched.</small></span></div>}{jobs.map((job, index) => <GlossyWorkerTask nodeRef={node => { if (node) workerRefs.current.set(job.replayJobId, node); else workerRefs.current.delete(job.replayJobId); }} job={job} index={index} selected={selectedOrder === job.orderId} key={job.replayJobId} onSelect={() => setSelectedOrder(selectedOrder === job.orderId ? null : job.orderId)}/>)}</div></section>
         <DetailPanel value={currentCase} selected={selected} busy={busy} onDecision={submitDecision} onRetry={requestAgain}/>
       </section>
-      <details className="run-inspector"><summary><span><Icon name="history"/><strong>{currentCase?.historyTitle ?? 'Release check history'}</strong><small>{currentCase ? `${jobs.length} replay jobs · ${currentCase.events.length} persisted events · ${currentCase.releaseHistory?.length ?? 0} prior checks` : 'One meaningful entry per release check'}</small></span><span>Inspect parent run <b>⌄</b></span></summary><div className="inspector-grid">{ORDER_IDS.map((orderId, index) => { const job = jobs[index]; const latest = job?.repaired ?? job?.candidate ?? job?.baseline; return <article key={orderId}><header><StatusDot status={job?.workerStatus ?? 'queued'}/><strong>{orderId}</strong><span>{job?.finalVerdict ?? 'queued'}</span></header><dl><div><dt>Replay job ID</dt><dd>{job?.replayJobId ?? `replay_${index + 1}`}</dd></div><div><dt>Tool calls</dt><dd>{[job?.baseline, job?.candidate, job?.repaired].filter(Boolean).length}</dd></div><div><dt>Tool</dt><dd>{latest?.toolName ?? '—'}</dd></div><div><dt>Final result</dt><dd>{job?.currentTask ?? 'Waiting for run'}</dd></div></dl>{latest && <details className="job-payload"><summary>Arguments & result</summary><code>{JSON.stringify(latest.toolArguments)}</code><code>{JSON.stringify(latest.toolResponse)}</code></details>}</article>; })}{currentCase && currentCase.approvalHistory.length > 0 && <article className="approval-history"><header><StatusDot status="verified"/><strong>Approval history</strong><span>{currentCase.approvalHistory.length} decisions</span></header>{currentCase.approvalHistory.map((approval, index) => <p key={`${approval.status}-${index}`}><b>{approval.status}</b><code>{approval.toolName ?? 'activate_compatibility_adapter'}</code></p>)}</article>}</div></details>
-      <footer className="retention-bar"><span><Icon name="history"/><strong>Retention</strong></span><span>Keep release summary</span><span>Keep receipt</span><span>Archive worker detail after proof</span><span>Hide low-level run noise</span></footer>
+      <section className="run-inspector" aria-label="Parent run inspection"><span className="run-inspector-meta"><Icon name="history"/><span><strong>{currentCase?.historyTitle ?? 'Release check history'}</strong><small>{currentCase ? `${jobs.length} replay jobs · ${currentCase.events.length} persisted events · ${currentCase.releaseHistory?.length ?? 0} prior checks` : 'One meaningful entry per release check'}</small></span></span><button className="run-inspector-trigger" type="button" onClick={() => setInspectorOpen(true)}>Inspect parent run <span aria-hidden="true">↗</span></button></section>
     </main>
+    {inspectorOpen && <ParentRunInspectorModal value={currentCase} jobs={jobs} onClose={() => setInspectorOpen(false)}/>}
   </div>;
 }

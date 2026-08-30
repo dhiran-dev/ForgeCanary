@@ -63,4 +63,14 @@ describe('runway story image plates', () => {
     expect(humanControl.match(/href="\/studio"/g)).toHaveLength(2);
     expect(releaseProof).toContain('href="/studio" label="OPEN FORGECANARY STUDIO"');
   });
+
+  it('opens parent-run inspection in a modal without the retention strip', () => {
+    const app = readFileSync(join(process.cwd(), 'ui/src/App.tsx'), 'utf8');
+
+    expect(app).toContain('dialog.showModal()');
+    expect(app).toContain('className="parent-run-modal"');
+    expect(app).toContain('onClick={() => setInspectorOpen(true)}');
+    expect(app).not.toContain('className="retention-bar"');
+    expect(app).not.toContain('Keep release summary');
+  });
 });
