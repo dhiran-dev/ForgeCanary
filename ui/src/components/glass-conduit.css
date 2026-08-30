@@ -1,0 +1,131 @@
+.fc-glass-conduit {
+  --fc-conduit-signal: #00d892;
+  --fc-conduit-packet: #75ffd0;
+}
+
+.fc-glass-conduit--coral {
+  --fc-conduit-signal: #ff6285;
+  --fc-conduit-packet: #ff87a0;
+}
+
+.fc-glass-conduit__occlusion,
+.fc-glass-conduit__housing,
+.fc-glass-conduit__edge,
+.fc-glass-conduit__glass,
+.fc-glass-conduit__glass-depth,
+.fc-glass-conduit__reflection,
+.fc-glass-conduit__channel,
+.fc-glass-conduit__signal-aura,
+.fc-glass-conduit__signal {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.fc-glass-conduit__occlusion {
+  stroke: #020403;
+  stroke-width: 13;
+  opacity: 0.98;
+}
+
+.fc-glass-conduit__housing {
+  stroke-width: 10.5;
+}
+
+.fc-glass-conduit__edge {
+  stroke: #aeb4b6;
+  stroke-width: 8;
+  opacity: 0.58;
+}
+
+.fc-glass-conduit__glass {
+  stroke-width: 6.2;
+}
+
+.fc-glass-conduit__glass-depth {
+  stroke: #020707;
+  stroke-width: 4.3;
+  opacity: .74;
+}
+
+.fc-glass-conduit__reflection {
+  stroke: #e7ebea;
+  stroke-width: .55;
+  stroke-dasharray: 14 8;
+  opacity: .48;
+}
+
+.fc-glass-conduit.is-flowing .fc-glass-conduit__reflection {
+  stroke-dasharray: 8 24;
+  animation: conduit-reflection 1.05s linear infinite;
+}
+
+.fc-glass-conduit__channel {
+  stroke: #123029;
+  stroke-width: 2.35;
+  opacity: 0.7;
+}
+
+.fc-glass-conduit__signal-aura {
+  stroke: var(--fc-conduit-signal);
+  stroke-width: 2.4;
+  opacity: 0;
+  transition: opacity 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.fc-glass-conduit__signal {
+  stroke: var(--fc-conduit-signal);
+  stroke-width: .85;
+  opacity: 0;
+  transition: opacity 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.fc-glass-conduit.is-active .fc-glass-conduit__signal {
+  opacity: 0.18;
+}
+
+.fc-glass-conduit.is-active .fc-glass-conduit__signal-aura {
+  opacity: 0;
+}
+
+.fc-glass-conduit.is-flowing .fc-glass-conduit__signal {
+  opacity: .88;
+}
+
+.fc-glass-conduit.is-flowing .fc-glass-conduit__signal-aura {
+  opacity: .13;
+}
+
+.fc-glass-conduit.is-idle .fc-glass-conduit__channel {
+  opacity: 0.24;
+}
+
+.fc-glass-conduit__packet {
+  fill: var(--fc-conduit-packet);
+  shape-rendering: crispEdges;
+  opacity: .94;
+  filter: drop-shadow(0 0 1.5px var(--fc-conduit-packet));
+}
+
+.fc-glass-conduit.is-reduced-motion .fc-glass-conduit__signal {
+  opacity: 0.68;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fc-glass-conduit__packets {
+    display: none;
+  }
+
+  .fc-glass-conduit.is-flowing .fc-glass-conduit__reflection {
+    animation: none;
+  }
+
+  .fc-glass-conduit__signal {
+    transition-duration: 0.01ms;
+  }
+}
+
+@keyframes conduit-reflection {
+  to { stroke-dashoffset: -32; }
+}

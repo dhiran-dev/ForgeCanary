@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ForgeCanary · Variant F state canvas</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --void: #0b0e12;
+      --carbon: #15181c;
+      --graphite: #1f2226;
+      --slate: #30343a;
+      --fog: #74777d;
+      --ash: #a5a7aa;
+      --bone: #dedede;
+      --green: #00d892;
+      --teal: #002923;
+      --coral: #ff6285;
+      --human: "Archivo Variable", "Helvetica Neue", system-ui, sans-serif;
+      --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: var(--void);
+      color: var(--bone);
+      font-family: var(--human);
+      font-weight: 400;
+    }
+    button, a { font: inherit; }
+    button { color: inherit; }
+    button:focus-visible, a:focus-visible {
+      outline: 1px solid var(--green);
+      outline-offset: 4px;
+    }
+
+    .app {
+      display: grid;
+      grid-template-rows: 64px minmax(0, 1fr) 58px;
+      min-height: 100%;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 292px minmax(0, 1fr) auto;
+      align-items: center;
+      border-bottom: 1px solid var(--slate);
+      padding: 0 18px;
+      background: #0d1014;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      min-width: 0;
+      letter-spacing: -0.01em;
+    }
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border: 1px solid var(--fog);
+      color: var(--green);
+    }
+    .brand-mark svg { width: 19px; fill: none; stroke: currentColor; stroke-width: 1.4; }
+    .brand strong { font-size: 15px; font-weight: 400; }
+    .brand span { color: var(--fog); font: 10px/1.2 var(--mono); letter-spacing: .08em; }
+
+    .titlebar { min-width: 0; }
+    .titlebar span { display: block; color: var(--fog); font: 10px/1.2 var(--mono); letter-spacing: .08em; }
+    .titlebar h1 {
+      margin: 3px 0 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 17px;
+      font-weight: 400;
+      letter-spacing: .01em;
+    }
+
+    .header-actions, .view-switch, .canvas-actions, .transport {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .button {
+      min-height: 34px;
+      border: 1px solid var(--slate);
+      border-radius: 1px;
+      padding: 0 12px;
+      background: transparent;
+      cursor: pointer;
+      color: var(--ash);
+      font: 10px/1 var(--mono);
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .button:hover { border-color: var(--fog); color: var(--bone); }
+    .button.active { border-color: #005441; background: var(--teal); color: var(--green); }
+    .button.icon { width: 34px; padding: 0; font-size: 15px; }
+    .button[disabled] { cursor: default; opacity: .35; }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 292px minmax(480px, 1fr) 300px;
+      min-height: 0;
+    }
+
+    .state-rail, .inspector {
+      min-height: 0;
+      background: #0d1014;
+    }
+    .state-rail { border-right: 1px solid var(--slate); }
+    .inspector { border-left: 1px solid var(--slate); }
+    .section-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 44px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--slate);
+      color: var(--fog);
+      font: 10px/1 var(--mono);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .section-label b { color: var(--ash); font-weight: 400; }
+
+    .states {
+      height: calc(100% - 44px);
+      margin: 0;
+      padding: 8px;
+      overflow: auto;
+      list-style: none;
+      scrollbar-color: var(--slate) transparent;
+    }
+    .state-button {
+      position: relative;
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) 18px;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      min-height: 66px;
+      margin: 0 0 3px;
+      border: 1px solid transparent;
+      border-radius: 1px;
+      padding: 8px;
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+    }
+    .state-button:hover { background: var(--carbon); }
+    .state-button[aria-current="step"] {
+      border-color: #005441;
+      background: var(--teal);
+    }
+    .state-number {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      border: 1px solid var(--slate);
+      color: var(--fog);
+      font: 11px/1 var(--mono);
+    }
+    [aria-current="step"] .state-number { border-color: var(--green); color: var(--green); }
+    .state-copy { min-width: 0; }
+    .state-copy strong {
+      display: block;
+      overflow: hidden;
+      color: var(--bone);
+      font-size: 13px;
+      font-weight: 400;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .state-copy small {
+      display: block;
+      margin-top: 5px;
+      overflow: hidden;
+      color: var(--fog);
+      font: 9px/1.25 var(--mono);
+      letter-spacing: .04em;
+      text-overflow: ellipsis;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .state-dot {
+      width: 6px;
+      height: 6px;
+      border: 1px solid var(--fog);
+    }
+    .state-button[aria-current="step"] .state-dot { border-color: var(--green); background: var(--green); }
+
+    .canvas-panel {
+      position: relative;
+      display: grid;
+      grid-template-rows: 44px minmax(0, 1fr) 42px;
+      min-width: 0;
+      min-height: 0;
+      background: #080a0d;
+    }
+    .canvas-toolbar, .canvas-caption {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--slate);
+      background: #0d1014;
+    }
+    .canvas-caption { border-top: 1px solid var(--slate); border-bottom: 0; }
+    .canvas-state { min-width: 0; }
+    .canvas-state strong {
+      display: block;
+      overflow: hidden;
+      font-size: 13px;
+      font-weight: 400;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .canvas-state span, .canvas-caption span {
+      color: var(--fog);
+      font: 9px/1.2 var(--mono);
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .canvas-caption span:last-child { color: var(--ash); }
+    .canvas-stage {
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+    }
+    .canvas-stage.dragging { cursor: grabbing; }
+    #stateCanvas { display: block; width: 100%; height: 100%; }
+    .canvas-hint {
+      position: absolute;
+      right: 14px;
+      bottom: 13px;
+      border: 1px solid var(--slate);
+      padding: 7px 9px;
+      background: rgba(11, 14, 18, .88);
+      color: var(--fog);
+      pointer-events: none;
+      font: 9px/1 var(--mono);
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+
+    .inspector-scroll {
+      height: calc(100% - 44px);
+      padding: 16px;
+      overflow: auto;
+      scrollbar-color: var(--slate) transparent;
+    }
+    .phase-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid #005441;
+      padding: 7px 9px;
+      color: var(--green);
+      font: 9px/1 var(--mono);
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .phase-chip::before { content: ""; width: 5px; height: 5px; background: currentColor; }
+    .inspector h2 { margin: 17px 0 8px; font-size: 23px; line-height: 1.15; font-weight: 400; }
+    .inspector p { margin: 0; color: var(--ash); font-size: 13px; line-height: 1.55; }
+    .rule { height: 1px; margin: 18px 0; background: var(--slate); }
+    .meta { display: grid; gap: 1px; margin: 0; }
+    .meta div {
+      display: grid;
+      grid-template-columns: 88px minmax(0, 1fr);
+      gap: 10px;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--graphite);
+    }
+    .meta dt { color: var(--fog); font: 9px/1.4 var(--mono); text-transform: uppercase; }
+    .meta dd { margin: 0; color: var(--bone); font: 10px/1.4 var(--mono); }
+    .behavior-title { margin: 0 0 10px; color: var(--fog); font: 9px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+    .behaviors { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+    .behaviors li {
+      position: relative;
+      padding-left: 18px;
+      color: var(--ash);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .behaviors li::before {
+      content: "";
+      position: absolute;
+      top: .48em;
+      left: 0;
+      width: 6px;
+      height: 6px;
+      border: 1px solid var(--green);
+    }
+
+    .bottom-bar {
+      display: grid;
+      grid-template-columns: 292px minmax(0, 1fr) 300px;
+      align-items: center;
+      border-top: 1px solid var(--slate);
+      background: #0d1014;
+    }
+    .transport { padding: 0 18px; }
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(8, minmax(20px, 1fr));
+      gap: 4px;
+      padding: 0 14px;
+    }
+    .timeline button {
+      position: relative;
+      height: 18px;
+      border: 0;
+      padding: 0;
+      background: transparent;
+      cursor: pointer;
+    }
+    .timeline button::before {
+      content: "";
+      position: absolute;
+      top: 8px;
+      right: 0;
+      left: 0;
+      height: 1px;
+      background: var(--slate);
+    }
+    .timeline button::after {
+      content: "";
+      position: absolute;
+      top: 5px;
+      left: 50%;
+      width: 7px;
+      height: 7px;
+      border: 1px solid var(--fog);
+      background: #0d1014;
+      transform: translateX(-50%);
+    }
+    .timeline button.active::before { background: #005441; }
+    .timeline button.active::after { border-color: var(--green); background: var(--green); }
+    .key-help {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      padding-right: 18px;
+      color: var(--fog);
+      font: 9px/1 var(--mono);
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+    kbd { border: 1px solid var(--slate); padding: 3px 5px; color: var(--ash); font: inherit; }
+
+    .board {
+      position: fixed;
+      inset: 64px 0 58px;
+      z-index: 10;
+      display: none;
+      overflow: auto;
+      padding: 22px;
+      background: var(--void);
+      scrollbar-color: var(--slate) transparent;
+    }
+    .board.visible { display: block; }
+    .board-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      max-width: 1680px;
+      margin: 0 auto;
+    }
+    .board-card {
+      border: 1px solid var(--slate);
+      padding: 0;
+      background: #090c10;
+      text-align: left;
+      cursor: pointer;
+    }
+    .board-card:hover { border-color: var(--fog); }
+    .board-card img { display: block; width: 100%; height: auto; background: #080a0d; }
+    .board-card footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 11px 12px;
+      border-top: 1px solid var(--slate);
+    }
+    .board-card strong { font-size: 13px; font-weight: 400; }
+    .board-card span { color: var(--fog); font: 9px/1.5 var(--mono); text-transform: uppercase; }
+
+    @media (max-width: 1120px) {
+      .workspace, .bottom-bar { grid-template-columns: 238px minmax(420px, 1fr); }
+      .inspector { display: none; }
+      .topbar { grid-template-columns: 238px minmax(0, 1fr) auto; }
+      .key-help { display: none; }
+      .board-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 760px) {
+      body { overflow: auto; }
+      .app { min-width: 680px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 8h8M8 12h5M8 16h8"/><path d="m15 10 4 2-4 2"/></svg>
+        </span>
+        <div><strong>ForgeCanary</strong><span>VARIANT F / STATE CANVAS</span></div>
+      </div>
+      <div class="titlebar"><span>RELEASE STORYBOARD</span><h1 id="headerTitle">Ready and release setup</h1></div>
+      <div class="header-actions">
+        <div class="view-switch" role="group" aria-label="View mode">
+          <button class="button active" id="canvasMode" type="button">Canvas</button>
+          <button class="button" id="boardMode" type="button">All states</button>
+        </div>
+        <a class="button" id="openPng" href="01-ready-setup.png" target="_blank" rel="noreferrer">Open PNG</a>
+        <button class="button icon" id="fullscreen" type="button" aria-label="Toggle fullscreen">⛶</button>
+      </div>
+    </header>
+
+    <main class="workspace" id="canvasView">
+      <aside class="state-rail" aria-label="Release states">
+        <div class="section-label"><span>Release flow</span><b id="stateCount">01 / 08</b></div>
+        <ol class="states" id="stateList"></ol>
+      </aside>
+
+      <section class="canvas-panel" aria-label="Mockup canvas">
+        <div class="canvas-toolbar">
+          <div class="canvas-state"><strong id="canvasTitle">Ready and release setup</strong><span id="canvasFile">01-ready-setup.png</span></div>
+          <div class="canvas-actions">
+            <button class="button icon" id="zoomOut" type="button" aria-label="Zoom out">−</button>
+            <button class="button" id="zoomLabel" type="button" aria-label="Reset to actual size">100%</button>
+            <button class="button icon" id="zoomIn" type="button" aria-label="Zoom in">+</button>
+            <button class="button" id="fit" type="button">Fit</button>
+          </div>
+        </div>
+        <div class="canvas-stage" id="canvasStage">
+          <canvas id="stateCanvas">Your browser needs canvas support to display these mockups.</canvas>
+          <div class="canvas-hint">Drag to pan · Wheel to zoom · Double-click to fit</div>
+        </div>
+        <div class="canvas-caption"><span id="canvasPhase">Setup</span><span id="canvasPosition">State 01 of 08</span></div>
+      </section>
+
+      <aside class="inspector" aria-label="State details">
+        <div class="section-label"><span>State intent</span><b>Live spec</b></div>
+        <div class="inspector-scroll">
+          <span class="phase-chip" id="phaseChip">Setup</span>
+          <h2 id="inspectorTitle">Ready and release setup</h2>
+          <p id="inspectorDescription"></p>
+          <div class="rule"></div>
+          <dl class="meta">
+            <div><dt>Parent run</dt><dd id="metaParent">Not created</dd></div>
+            <div><dt>Workers</dt><dd id="metaWorkers">6 waiting</dd></div>
+            <div><dt>Operator</dt><dd id="metaOperator">Start release check</dd></div>
+            <div><dt>Retention</dt><dd id="metaRetention">Policy preview</dd></div>
+          </dl>
+          <div class="rule"></div>
+          <h3 class="behavior-title">Must remain true</h3>
+          <ul class="behaviors" id="behaviorList"></ul>
+        </div>
+      </aside>
+    </main>
+
+    <section class="board" id="boardView" aria-label="All mockups"><div class="board-grid" id="boardGrid"></div></section>
+
+    <footer class="bottom-bar">
+      <div class="transport">
+        <button class="button icon" id="previous" type="button" aria-label="Previous state">←</button>
+        <button class="button" id="play" type="button">Play</button>
+        <button class="button icon" id="next" type="button" aria-label="Next state">→</button>
+      </div>
+      <div class="timeline" id="timeline" aria-label="State timeline"></div>
+      <div class="key-help"><span><kbd>←</kbd><kbd>→</kbd> States</span><span><kbd>Space</kbd> Play</span><span><kbd>B</kbd> Board</span></div>
+    </footer>
+  </div>
+
+  <script>
+    const states = [
+      {
+        file: "01-ready-setup.png",
+        title: "Ready and release setup",
+        phase: "Setup",
+        short: "Agent ready · fresh run",
+        description: "Confirm the reusable saved agent, candidate pair, replay corpus, and retention policy before ForgeCanary creates a fresh parent release run.",
+        parent: "Not created",
+        workers: "6 waiting sockets",
+        operator: "Start release check",
+        retention: "Policy preview",
+        rules: ["Only the saved agent ID lives in ForgeCanary configuration.", "A fresh parent run is created for every candidate release.", "No History entry exists until the release check begins."]
+      },
+      {
+        file: "02-worker-spawn-replay.png",
+        title: "Workers spawning and replaying",
+        phase: "Replay",
+        short: "Spawn · queue · work",
+        description: "The parent dispatches six isolated executions from the same saved-agent configuration. Users see each worker spawn, queue, work, and expose live activity.",
+        parent: "RUN-042 active",
+        workers: "3 spawned · 2 working",
+        operator: "Inspect any worker",
+        retention: "Detail closes after result",
+        rules: ["Exactly six replay workers belong to one parent run.", "Every worker follows Current, Upgrade, Evidence, Result.", "Packet motion communicates dispatch direction only."]
+      },
+      {
+        file: "03-compare-divergence-held.png",
+        title: "Compare and hold divergence",
+        phase: "Compare",
+        short: "Evidence differs · held",
+        description: "Matching protocol responses are checked against external business state. One semantic difference remains open and held while other workers close into receipts.",
+        parent: "RUN-042 active",
+        workers: "5 clear · 1 held",
+        operator: "Inspect evidence",
+        retention: "Receipt pending",
+        rules: ["Matching tool replies never override contradictory evidence.", "Coral appears only on the true divergence and held path.", "Completed workers remain expandable after they close."]
+      },
+      {
+        file: "04-repair-approval.png",
+        title: "Repair approval",
+        phase: "Decide",
+        short: "Human-controlled write",
+        description: "The same parent run pauses before the scoped compatibility repair. The operator can keep the release blocked or allow the repair and replay all six jobs.",
+        parent: "RUN-042 paused",
+        workers: "5 complete · 1 held",
+        operator: "Keep blocked or allow",
+        retention: "One parent entry",
+        rules: ["The approval never starts a separate release conversation.", "The reviewed scope and evidence stay visible beside the decision.", "No production-facing write happens without operator approval."]
+      },
+      {
+        file: "05-denied-zero-mutation.png",
+        title: "Denied safely, resume available",
+        phase: "Decide",
+        short: "Zero mutation verified",
+        description: "Independent state hashes prove that denial changed nothing. The operator can request the repair again without abandoning or duplicating the parent release run.",
+        parent: "RUN-042 held",
+        workers: "5 archived · 1 held",
+        operator: "Request repair again",
+        retention: "Denial receipt retained",
+        rules: ["Denial proof compares adapter and candidate state.", "A later request continues the same release workflow.", "History still contains one meaningful parent entry."]
+      },
+      {
+        file: "06-repair-verification.png",
+        title: "Repair replay and verification",
+        phase: "Proof",
+        short: "Fresh state · 4/6 verified",
+        description: "After approval, the candidate resets to fresh state and all six jobs replay. The prior held path clears while independent evidence verifies each repaired outcome.",
+        parent: "RUN-042 verifying",
+        workers: "4 verified · 1 active · 1 queued",
+        operator: "Inspect verification",
+        retention: "Receipt pending",
+        rules: ["Verification uses fresh candidate state, never cached results.", "All six jobs replay after the scoped repair.", "Resolved verification contains no Coral."]
+      },
+      {
+        file: "07-release-proof.png",
+        title: "Safe-to-ship release proof",
+        phase: "Proof",
+        short: "6/6 verified · receipt",
+        description: "All workers close into verified receipts. The parent receives one final verdict with schema, repair scope, approval history, and downloadable proof.",
+        parent: "RUN-042 complete",
+        workers: "6 verified · closed",
+        operator: "Download or inspect",
+        retention: "Summary + receipt kept",
+        rules: ["The final proof contains no Coral.", "Approval history records Denied then Allowed.", "A future candidate creates a new parent run while the saved agent persists."]
+      },
+      {
+        file: "08-history-retention.png",
+        title: "Expanded History and retention",
+        phase: "History",
+        short: "1 parent · 6 archived",
+        description: "History shows one parent release entry rather than six conversations. Expanding it reveals workers, activity, tool calls, approvals, results, metadata, and retention controls.",
+        parent: "RUN-042 retained",
+        workers: "6 verified · archived",
+        operator: "Inspect parent or worker",
+        retention: "Automatic policy active",
+        rules: ["Child executions never clutter top-level History.", "Release summaries and signed receipts are retained.", "Low-level activity archives or deletes according to policy."]
+      }
+    ];
+
+    const $ = selector => document.querySelector(selector);
+    const list = $("#stateList");
+    const timeline = $("#timeline");
+    const boardGrid = $("#boardGrid");
+    const canvas = $("#stateCanvas");
+    const stage = $("#canvasStage");
+    const ctx = canvas.getContext("2d");
+    const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    let index = 0;
+    let zoom = 1;
+    let panX = 0;
+    let panY = 0;
+    let dragging = false;
+    let dragStart = { x: 0, y: 0, panX: 0, panY: 0 };
+    let playing = false;
+    let playTimer = null;
+    let fade = 1;
+
+    const images = states.map(state => {
+      const img = new Image();
+      img.decoding = "async";
+      img.src = state.file;
+      img.addEventListener("load", () => { if (images[index] === img) fitImage(false); });
+      return img;
+    });
+
+    states.forEach((state, i) => {
+      const li = document.createElement("li");
+      li.innerHTML = `<button class="state-button" type="button" data-index="${i}">
+        <span class="state-number">${String(i + 1).padStart(2, "0")}</span>
+        <span class="state-copy"><strong>${state.title}</strong><small>${state.short}</small></span>
+        <span class="state-dot" aria-hidden="true"></span>
+      </button>`;
+      list.append(li);
+
+      const point = document.createElement("button");
+      point.type = "button";
+      point.dataset.index = i;
+      point.setAttribute("aria-label", `Open ${state.title}`);
+      timeline.append(point);
+
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "board-card";
+      card.dataset.index = i;
+      card.innerHTML = `<img src="${state.file}" alt="${state.title} mockup" loading="lazy" width="1672" height="941"><footer><strong>${String(i + 1).padStart(2, "0")} · ${state.title}</strong><span>${state.phase}</span></footer>`;
+      boardGrid.append(card);
+    });
+
+    function resizeCanvas() {
+      const rect = stage.getBoundingClientRect();
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      canvas.width = Math.max(1, Math.round(rect.width * dpr));
+      canvas.height = Math.max(1, Math.round(rect.height * dpr));
+      canvas.style.width = `${rect.width}px`;
+      canvas.style.height = `${rect.height}px`;
+      render();
+    }
+
+    function fitScale() {
+      const img = images[index];
+      if (!img.naturalWidth) return 1;
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      return Math.min(canvas.width / dpr / img.naturalWidth, canvas.height / dpr / img.naturalHeight) * .94;
+    }
+
+    function fitImage(updateLabel = true) {
+      zoom = fitScale();
+      panX = 0;
+      panY = 0;
+      if (updateLabel) updateZoomLabel();
+      render();
+    }
+
+    function actualSize() {
+      zoom = 1;
+      panX = 0;
+      panY = 0;
+      updateZoomLabel();
+      render();
+    }
+
+    function render() {
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      const w = canvas.width / dpr;
+      const h = canvas.height / dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#080a0d";
+      ctx.fillRect(0, 0, w, h);
+      const img = images[index];
+      if (!img.naturalWidth) return;
+      const dw = img.naturalWidth * zoom;
+      const dh = img.naturalHeight * zoom;
+      const x = (w - dw) / 2 + panX;
+      const y = (h - dh) / 2 + panY;
+      ctx.globalAlpha = fade;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, x, y, dw, dh);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = "#30343a";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(Math.round(x) + .5, Math.round(y) + .5, Math.round(dw) - 1, Math.round(dh) - 1);
+    }
+
+    function updateZoomLabel() { $("#zoomLabel").textContent = `${Math.round(zoom * 100)}%`; }
+
+    function animateIn() {
+      if (reducedMotion) { fade = 1; render(); return; }
+      const started = performance.now();
+      const tick = now => {
+        fade = Math.min(1, (now - started) / 140);
+        render();
+        if (fade < 1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
+
+    function selectState(nextIndex, options = {}) {
+      index = (nextIndex + states.length) % states.length;
+      const state = states[index];
+      document.querySelectorAll(".state-button").forEach((button, i) => {
+        if (i === index) button.setAttribute("aria-current", "step");
+        else button.removeAttribute("aria-current");
+      });
+      document.querySelectorAll(".timeline button").forEach((button, i) => button.classList.toggle("active", i === index));
+      $("#headerTitle").textContent = state.title;
+      $("#canvasTitle").textContent = state.title;
+      $("#canvasFile").textContent = state.file;
+      $("#canvasPhase").textContent = state.phase;
+      $("#canvasPosition").textContent = `State ${String(index + 1).padStart(2, "0")} of ${String(states.length).padStart(2, "0")}`;
+      $("#stateCount").textContent = `${String(index + 1).padStart(2, "0")} / ${String(states.length).padStart(2, "0")}`;
+      $("#phaseChip").textContent = state.phase;
+      $("#inspectorTitle").textContent = state.title;
+      $("#inspectorDescription").textContent = state.description;
+      $("#metaParent").textContent = state.parent;
+      $("#metaWorkers").textContent = state.workers;
+      $("#metaOperator").textContent = state.operator;
+      $("#metaRetention").textContent = state.retention;
+      $("#behaviorList").innerHTML = state.rules.map(rule => `<li>${rule}</li>`).join("");
+      $("#openPng").href = state.file;
+      $("#previous").disabled = index === 0;
+      $("#next").disabled = index === states.length - 1;
+      document.querySelector(`.state-button[data-index="${index}"]`)?.scrollIntoView({ block: "nearest" });
+      if (options.keepZoom) render(); else fitImage();
+      fade = reducedMotion ? 1 : 0;
+      animateIn();
+    }
+
+    function setView(mode) {
+      const board = mode === "board";
+      $("#boardView").classList.toggle("visible", board);
+      $("#canvasMode").classList.toggle("active", !board);
+      $("#boardMode").classList.toggle("active", board);
+      $("#canvasMode").setAttribute("aria-pressed", String(!board));
+      $("#boardMode").setAttribute("aria-pressed", String(board));
+    }
+
+    function togglePlay() {
+      playing = !playing;
+      $("#play").textContent = playing ? "Pause" : "Play";
+      clearInterval(playTimer);
+      if (playing) {
+        setView("canvas");
+        playTimer = setInterval(() => {
+          if (index === states.length - 1) { playing = false; clearInterval(playTimer); $("#play").textContent = "Play"; return; }
+          selectState(index + 1);
+        }, 2800);
+      }
+    }
+
+    function setZoom(nextZoom, originX, originY) {
+      const rect = stage.getBoundingClientRect();
+      const old = zoom;
+      const clamped = Math.max(.12, Math.min(2.5, nextZoom));
+      const ox = originX ?? rect.width / 2;
+      const oy = originY ?? rect.height / 2;
+      panX = ox - (ox - panX - rect.width / 2) * (clamped / old) - rect.width / 2;
+      panY = oy - (oy - panY - rect.height / 2) * (clamped / old) - rect.height / 2;
+      zoom = clamped;
+      updateZoomLabel();
+      render();
+    }
+
+    list.addEventListener("click", event => {
+      const button = event.target.closest("button[data-index]");
+      if (button) selectState(Number(button.dataset.index));
+    });
+    timeline.addEventListener("click", event => {
+      const button = event.target.closest("button[data-index]");
+      if (button) selectState(Number(button.dataset.index));
+    });
+    boardGrid.addEventListener("click", event => {
+      const card = event.target.closest("button[data-index]");
+      if (!card) return;
+      selectState(Number(card.dataset.index));
+      setView("canvas");
+    });
+
+    $("#previous").addEventListener("click", () => selectState(Math.max(0, index - 1)));
+    $("#next").addEventListener("click", () => selectState(Math.min(states.length - 1, index + 1)));
+    $("#play").addEventListener("click", togglePlay);
+    $("#fit").addEventListener("click", () => fitImage());
+    $("#zoomLabel").addEventListener("click", actualSize);
+    $("#zoomIn").addEventListener("click", () => setZoom(zoom * 1.16));
+    $("#zoomOut").addEventListener("click", () => setZoom(zoom / 1.16));
+    $("#canvasMode").addEventListener("click", () => setView("canvas"));
+    $("#boardMode").addEventListener("click", () => setView("board"));
+    $("#fullscreen").addEventListener("click", () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen());
+
+    stage.addEventListener("pointerdown", event => {
+      dragging = true;
+      stage.classList.add("dragging");
+      stage.setPointerCapture(event.pointerId);
+      dragStart = { x: event.clientX, y: event.clientY, panX, panY };
+    });
+    stage.addEventListener("pointermove", event => {
+      if (!dragging) return;
+      panX = dragStart.panX + event.clientX - dragStart.x;
+      panY = dragStart.panY + event.clientY - dragStart.y;
+      render();
+    });
+    stage.addEventListener("pointerup", event => {
+      dragging = false;
+      stage.classList.remove("dragging");
+      stage.releasePointerCapture(event.pointerId);
+    });
+    stage.addEventListener("wheel", event => {
+      event.preventDefault();
+      const rect = stage.getBoundingClientRect();
+      setZoom(zoom * (event.deltaY > 0 ? .9 : 1.1), event.clientX - rect.left, event.clientY - rect.top);
+    }, { passive: false });
+    stage.addEventListener("dblclick", () => fitImage());
+
+    addEventListener("keydown", event => {
+      if (event.target.matches("button, a, input, select, textarea")) return;
+      if (event.key === "ArrowLeft") selectState(Math.max(0, index - 1));
+      if (event.key === "ArrowRight") selectState(Math.min(states.length - 1, index + 1));
+      if (event.key === " ") { event.preventDefault(); togglePlay(); }
+      if (event.key.toLowerCase() === "f") fitImage();
+      if (event.key.toLowerCase() === "b") setView($("#boardView").classList.contains("visible") ? "canvas" : "board");
+    });
+
+    new ResizeObserver(resizeCanvas).observe(stage);
+    selectState(0);
+    resizeCanvas();
+  </script>
+</body>
+</html>

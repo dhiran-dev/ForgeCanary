@@ -63,11 +63,19 @@ body:has(.runway-page) {
 }
 
 .runway-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
   color: var(--runway-bone);
   font-size: 22px;
   font-weight: 430;
   letter-spacing: -0.035em;
   text-decoration: none;
+}
+
+.runway-brand .forgecanary-brand__mark {
+  width: 34px;
+  height: 34px;
 }
 
 .runway-nav-actions,
@@ -77,6 +85,32 @@ body:has(.runway-page) {
 }
 
 .runway-nav-actions { gap: 20px; }
+
+.runway-studio-link {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 18px;
+  padding: 0 15px;
+  border: 1px solid #00694f;
+  border-radius: 1px;
+  background: var(--runway-green-deep);
+  color: var(--runway-green);
+  font-family: var(--runway-font-system);
+  font-size: 9px;
+  font-feature-settings: "calt" 0;
+  font-weight: 400;
+  letter-spacing: 0.13em;
+  text-decoration: none;
+  transition: border-color 160ms linear, background-color 160ms linear;
+}
+
+.runway-studio-link i {
+  color: var(--runway-bone);
+  font-size: 14px;
+  font-style: normal;
+  letter-spacing: 0;
+}
 
 .runway-connection {
   gap: 10px;
@@ -348,6 +382,7 @@ body:has(.runway-page) {
 
 @media (hover: hover) and (pointer: fine) {
   .runway-scroll-cue:hover { color: var(--runway-green); }
+  .runway-studio-link:hover { border-color: var(--runway-green); background: #003c32; }
 }
 
 @keyframes runway-nav-in {
@@ -396,9 +431,11 @@ body:has(.runway-page) {
 }
 
 @media (max-width: 560px) {
-  .runway-brand { font-size: 17px; }
+  .runway-brand { gap: 8px; font-size: 17px; }
+  .runway-brand .forgecanary-brand__mark { width: 29px; height: 29px; }
   .runway-nav-actions { gap: 13px; }
-  .runway-connection span { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .runway-connection span { display: none; }
+  .runway-studio-link { gap: 10px; padding-inline: 11px; font-size: 8px; }
   .runway-copy h1 { font-size: 38px; line-height: 0.98; }
   .runway-copy > p { max-width: 345px; }
   .runway-stage { inset: 57% -8% 74px; }

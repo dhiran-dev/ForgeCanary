@@ -7,6 +7,7 @@ import {
   useState
 } from 'react';
 import { loadCase, loadConfig, loadCurrentCase, loadHealth } from '../api';
+import { ForgeCanaryBrand } from '../components/ForgeCanaryBrand';
 import type { ForgeCanaryCase, HealthState, PublicConfig } from '../types';
 import ReleaseRunwayLayeredScene from './ReleaseRunwayLayeredScene';
 import ReleaseRunwaySections from './ReleaseRunwaySections';
@@ -96,7 +97,7 @@ export default function ReleaseRunwayPrototype() {
   return (
     <div className={`runway-page runway-phase-${view.phase}`}>
       <header className="runway-nav">
-        <a className="runway-brand" href="/runway" aria-label="ForgeCanary home">ForgeCanary</a>
+        <ForgeCanaryBrand className="runway-brand" href="/" ariaLabel="ForgeCanary home" />
         <div className="runway-nav-actions">
           <div
             className={`runway-connection ${servicesReady ? 'online' : ''}`}
@@ -109,6 +110,10 @@ export default function ReleaseRunwayPrototype() {
               <small className={error ? 'is-error' : ''} title={error ?? undefined}>{error ?? config?.model}</small>
             )}
           </div>
+          <a className="runway-studio-link" href="/studio">
+            <span>OPEN STUDIO</span>
+            <i aria-hidden="true">→</i>
+          </a>
         </div>
       </header>
 

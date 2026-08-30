@@ -11,6 +11,9 @@ export interface ForgeCanaryConfig {
   v2BaseUrl: string;
   controlBaseUrl: string;
   caseStatePath: string;
+  savedAgentRefPath: string;
+  baselineVersion: string;
+  candidateVersion: string;
 }
 
 const TEST_MODEL = 'forgecanary-local/forgecanary-deterministic';
@@ -30,7 +33,10 @@ export function readForgeCanaryConfig(): ForgeCanaryConfig {
     v1BaseUrl: process.env.V1_FIXTURE_BASE_URL ?? 'http://127.0.0.1:9101',
     v2BaseUrl: process.env.V2_FIXTURE_BASE_URL ?? 'http://127.0.0.1:9102',
     controlBaseUrl: process.env.CONTROL_BASE_URL ?? 'http://127.0.0.1:9200',
-    caseStatePath: process.env.FORGECANARY_CASE_STATE ?? '.data/live-case.json'
+    caseStatePath: process.env.FORGECANARY_CASE_STATE ?? '.data/live-case.json',
+    savedAgentRefPath: process.env.FORGECANARY_AGENT_REF ?? '.data/saved-agent.json',
+    baselineVersion: process.env.FORGECANARY_BASELINE_VERSION ?? 'MCP v1',
+    candidateVersion: process.env.FORGECANARY_CANDIDATE_VERSION ?? 'MCP v2'
   };
 }
 

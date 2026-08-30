@@ -32,6 +32,7 @@ export interface CaseTraceEvent {
 
 export interface JobRunEvidence {
   sessionId: string;
+  turnId?: string;
   toolName: string;
   toolArguments: Record<string, unknown>;
   toolResponse: Record<string, unknown>;
@@ -39,6 +40,7 @@ export interface JobRunEvidence {
 }
 
 export interface CaseJobRow {
+  replayJobId: string;
   orderId: string;
   sku: string;
   quantity: number;
@@ -49,6 +51,9 @@ export interface CaseJobRow {
   repaired?: JobRunEvidence;
   protocolEqual?: boolean;
   repairedProtocolEqual?: boolean;
+  workerStatus: 'queued' | 'spawning' | 'running' | 'held' | 'verified' | 'closed' | 'failed';
+  currentTask: string;
+  finalVerdict?: 'pass' | 'regression' | 'repaired';
 }
 
 export interface CaseApproval {
@@ -83,10 +88,19 @@ export interface CaseReceipt {
   createdAt: string;
   model: string;
   trueforgeBaseUrl: string;
+  savedAgentId: string;
+  parentRunId: string;
+  baselineVersion: string;
+  candidateVersion: string;
+  finalVerdict: ForgeCanaryCase['finalVerdict'];
   sessionIds: string[];
   schema: { v1Hash: string; v2Hash: string; equal: boolean };
   jobs: Array<{
+    replayJobId: string;
     orderId: string;
+    baselineTurnId: string | null;
+    candidateTurnId: string | null;
+    repairedTurnId: string | null;
     protocolEqual: boolean;
     repairedProtocolEqual: boolean | null;
     candidatePassed: boolean;
@@ -100,12 +114,29 @@ export interface CaseReceipt {
   receiptHash: string;
 }
 
+export interface ReleaseHistoryEntry {
+  caseId: string;
+  historyTitle: string;
+  parentRunId: string | null;
+  candidateVersion: string;
+  finalVerdict: ForgeCanaryCase['finalVerdict'];
+  completedAt: string;
+  receiptHash: string | null;
+}
+
 export interface ForgeCanaryCase {
   version: 1;
   id: string;
   stage: CaseStage;
   mode: 'live' | 'test';
   model: string;
+  savedAgentId: string;
+  parentRunId?: string;
+  parentSessionId?: string;
+  baselineVersion: string;
+  candidateVersion: string;
+  historyTitle: string;
+  finalVerdict?: 'blocked' | 'denied_zero_mutation' | 'safe_to_ship';
   createdAt: string;
   updatedAt: string;
   sequence: number;
@@ -116,8 +147,17 @@ export interface ForgeCanaryCase {
   analysisSessionId?: string;
   approval: CaseApproval;
   approvalHistory: CaseApproval[];
+  receiptHistory: CaseReceipt[];
+  releaseHistory: ReleaseHistoryEntry[];
   capabilities: CaseCapabilities;
   events: CaseTraceEvent[];
   receipt?: CaseReceipt;
+  retention: {
+    releaseSummary: 'keep';
+    receipt: 'keep';
+    workerDetail: 'archive_after_receipt';
+    childRuns: 'hidden';
+    archivedWorkerEventCount: number;
+  };
   error?: { message: string; stage: CaseStage; occurredAt: string };
 }

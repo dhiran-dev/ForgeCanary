@@ -47,4 +47,40 @@ describe('runway story image plates', () => {
       expect(source).toContain("onError={() => setHardwareState('error')}");
     }
   });
+
+  it('keeps the product story at root and the operator workspace at /studio', () => {
+    const entry = readFileSync(join(process.cwd(), 'ui/src/main.tsx'), 'utf8');
+    const app = readFileSync(join(process.cwd(), 'ui/src/App.tsx'), 'utf8');
+    const prototype = readFileSync(join(process.cwd(), 'ui/src/runway/ReleaseRunwayPrototype.tsx'), 'utf8');
+    const humanControl = readFileSync(join(process.cwd(), 'ui/src/runway/sections/HumanControlSection.tsx'), 'utf8');
+    const releaseProof = readFileSync(join(process.cwd(), 'ui/src/runway/sections/ReleaseProofSection.tsx'), 'utf8');
+
+    expect(entry).toContain("window.location.pathname === '/studio'");
+    expect(entry).toContain('!isStudio');
+    expect(app).toContain('href="/" ariaLabel="ForgeCanary landing page"');
+    expect(prototype).toContain('href="/" ariaLabel="ForgeCanary home"');
+    expect(prototype).toContain('className="runway-studio-link" href="/studio"');
+    expect(humanControl.match(/href="\/studio"/g)).toHaveLength(2);
+    expect(releaseProof).toContain('href="/studio" label="OPEN FORGECANARY STUDIO"');
+  });
+
+  it('opens parent-run inspection in a modal without the retention strip', () => {
+    const app = readFileSync(join(process.cwd(), 'ui/src/App.tsx'), 'utf8');
+
+    expect(app).toContain('dialog.showModal()');
+    expect(app).toContain('className="parent-run-modal"');
+    expect(app).toContain('onClick={() => setInspectorOpen(true)}');
+    expect(app).not.toContain('className="retention-bar"');
+    expect(app).not.toContain('Keep release summary');
+  });
+
+  it('renders inspector cards only from spawned jobs and their canonical identities', () => {
+    const app = readFileSync(join(process.cwd(), 'ui/src/App.tsx'), 'utf8');
+
+    expect(app).toContain('jobs.map(job =>');
+    expect(app).toContain('<strong>{job.orderId}</strong>');
+    expect(app).toContain('<dd>{job.replayJobId}</dd>');
+    expect(app).not.toContain('const ORDER_IDS');
+    expect(app).not.toContain('jobs[index]');
+  });
 });

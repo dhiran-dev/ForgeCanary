@@ -11,7 +11,7 @@ interface ChatMessage {
 
 interface ChatTool {
   type?: string;
-  function?: { name?: string };
+  function?: { name?: string; description?: string };
 }
 
 interface ChatCompletionRequest {
@@ -43,6 +43,18 @@ function findTool(tools: ChatTool[], fragment: string): string | undefined {
   return tools.map(tool => tool.function?.name).find(name => name?.includes(fragment));
 }
 
+function findReserveTool(tools: ChatTool[], prompt: string): string | undefined {
+  const targetMcp = /TARGET_MCP=([^\s]+)/i.exec(prompt)?.[1];
+  if (targetMcp) {
+    const selected = tools.find(tool =>
+      tool.function?.name?.includes('reserve_inventory') &&
+      tool.function.description?.toLowerCase().includes(`mcp server: ${targetMcp.toLowerCase()}`)
+    );
+    if (selected?.function?.name) return selected.function.name;
+  }
+  return findTool(tools, 'reserve_inventory');
+}
+
 function deterministicCallId(seed: string): string {
   return `call_${createHash('sha256').update(seed).digest('hex').slice(0, 20)}`;
 }
@@ -61,7 +73,7 @@ function planResponse(body: ChatCompletionRequest): {
 
   const prompt = latestUserText(messages);
   const activateTool = findTool(tools, 'activate_compatibility_adapter');
-  if (activateTool) {
+  if (activateTool && (prompt.includes('ADAPTER=') || prompt.includes('activate_compatibility_adapter'))) {
     const adapterId = /ADAPTER=([A-Za-z0-9._-]+)/.exec(prompt)?.[1];
     const scope = /SCOPE=([A-Za-z0-9._:-]+)/.exec(prompt)?.[1];
     const candidateSchemaHash = /SCHEMA_HASH=([a-f0-9]{64})/.exec(prompt)?.[1];
@@ -85,7 +97,7 @@ function planResponse(body: ChatCompletionRequest): {
     };
   }
 
-  const reserveTool = findTool(tools, 'reserve_inventory');
+  const reserveTool = findReserveTool(tools, prompt);
   if (reserveTool) {
     const orderId = /ORDER=([A-Z0-9-]+)/.exec(prompt)?.[1];
     const sku = /SKU=([A-Z0-9-]+)/.exec(prompt)?.[1];
