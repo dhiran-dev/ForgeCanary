@@ -126,10 +126,17 @@ export default function EvidenceSection({ view, reducedMotion }: EvidenceSection
           </div>
         </div>
 
+        <p className="evidence-story__a11y-description" id="evidence-machine-description">
+          Current and Upgrade both reserved 4 units. Current selected the medicine lot expiring 05 Sep,
+          so older safe stock ships first. Upgrade selected the lot expiring 01 Dec, so older stock may
+          expire unused. The reported outcome matched, but the evidence diverged because lot selection changed.
+        </p>
+
         <div
           className="evidence-story__machine"
           role="img"
           aria-label={`A release request is replayed against current and upgrade versions. Both reserve four units, while evidence reveals a changed medicine lot. Live runway phase: ${view.phase}.`}
+          aria-describedby="evidence-machine-description"
         >
           <svg
             className="evidence-story__conduits"
