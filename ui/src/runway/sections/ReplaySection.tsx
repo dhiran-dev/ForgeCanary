@@ -1,15 +1,17 @@
 import type { RunwayView } from '../runway-state';
+import { deriveReplayStoryState, statusCount } from './replay-section-state';
 import './replay-section.css';
 
 type ReplaySectionProps = {
   view: RunwayView;
   reducedMotion: boolean;
+  illustrative: boolean;
 };
 
 type ConduitPathProps = {
   id: string;
   d: string;
-  reducedMotion: boolean;
+  moving: boolean;
   reverse?: boolean;
 };
 
@@ -22,15 +24,7 @@ const specialistPaths = [
 
 const cartridgeCenters = [44.8, 49.5, 54.3, 59.1, 63.9, 68.7];
 
-function replayProgress(view: RunwayView): number {
-  if (view.phase === 'ready' || view.phase === 'current') return 0;
-  if (view.phase === 'replay') {
-    return Math.max(1, Math.min(6, Math.ceil(view.replayExecutions / 2)));
-  }
-  return 6;
-}
-
-function ConduitPath({ id, d, reducedMotion, reverse = false }: ConduitPathProps) {
+function ConduitPath({ id, d, moving, reverse = false }: ConduitPathProps) {
   return (
     <g className="replay-story__conduit">
       <path className="replay-story__conduit-shell" d={d} />
@@ -38,7 +32,7 @@ function ConduitPath({ id, d, reducedMotion, reverse = false }: ConduitPathProps
       <path className="replay-story__conduit-void" d={d} />
       <path className="replay-story__conduit-signal" d={d} />
       <path id={id} className="replay-story__motion-guide" d={d} />
-      {!reducedMotion && [0, 1, 2].map(packet => (
+      {moving && [0, 1, 2].map(packet => (
         <rect
           className="replay-story__packet"
           key={packet}
@@ -61,10 +55,20 @@ function ConduitPath({ id, d, reducedMotion, reverse = false }: ConduitPathProps
   );
 }
 
-export default function ReplaySection({ view, reducedMotion }: ReplaySectionProps) {
-  const completed = replayProgress(view);
-  const hasMismatch = view.changesFound > 0 || ['compare', 'blocked', 'repair', 'complete'].includes(view.phase);
-  const replayStatus = completed === 6 ? '06 / 06 COMPLETE' : `${String(completed || 4).padStart(2, '0')} / 06 RUNNING`;
+export default function ReplaySection({ view, reducedMotion, illustrative }: ReplaySectionProps) {
+  const {
+    completed,
+    hasMismatch,
+    replayMoving,
+    mismatchMoving,
+    narrative,
+    baselineCompleted,
+    upgradeCompleted,
+    baselineActive,
+    upgradeActive,
+    activeStage,
+    heldChanges
+  } = deriveReplayStoryState(view, illustrative, reducedMotion);
 
   return (
     <section
@@ -81,9 +85,13 @@ export default function ReplaySection({ view, reducedMotion }: ReplaySectionProp
             what each is checking, and what they return before anything ships.
           </p>
 
-          <aside className="replay-story__live" aria-label="Current replay activity">
-            <span>LIVE / RIGHT NOW</span>
-            <p>Two replay agents are running the same six pharmacy orders.</p>
+          <aside
+            className="replay-story__live"
+            aria-label={illustrative ? 'Illustrative replay activity' : 'Current replay activity'}
+            aria-live={illustrative ? undefined : 'polite'}
+          >
+            <span>{narrative.label}</span>
+            <p>{narrative.copy}</p>
           </aside>
         </div>
 
@@ -106,7 +114,7 @@ export default function ReplaySection({ view, reducedMotion }: ReplaySectionProp
                 id={path.id}
                 d={path.d}
                 reverse={'reverse' in path ? path.reverse : false}
-                reducedMotion={reducedMotion}
+                moving={replayMoving}
               />
             ))}
             {[877, 951, 1025, 1097].map((x, index) => (
@@ -115,7 +123,7 @@ export default function ReplaySection({ view, reducedMotion }: ReplaySectionProp
                 <path className="replay-story__conduit-glass" d={`M ${x} 508 V 551`} />
                 <path className="replay-story__conduit-void" d={`M ${x} 508 V 551`} />
                 <path className="replay-story__conduit-signal" d={`M ${x} 508 V 551`} />
-                {!reducedMotion && (
+                {replayMoving && (
                   <rect className="replay-story__packet" x={x - 7} y="510" width="14" height="4" rx="1">
                     <animate attributeName="y" begin={`${-index * 0.19}s`} dur="0.78s" values="510;545" repeatCount="indefinite" />
                   </rect>
@@ -129,6 +137,8 @@ export default function ReplaySection({ view, reducedMotion }: ReplaySectionProp
             src="/images/runway-sections/replay/replay-hardware.png"
             alt=""
             aria-hidden="true"
+            loading="lazy"
+            decoding="async"
           />
 
           <svg
@@ -154,7 +164,7 @@ export default function ReplaySection({ view, reducedMotion }: ReplaySectionProp
               <path className="replay-story__conduit-glass" d="M 593 684 H 1348" />
               <path className="replay-story__conduit-void" d="M 593 684 H 1348" />
               <path className="replay-story__conduit-signal" d="M 593 684 H 1348" />
-              {!reducedMotion && [0, 1, 2, 3].map(packet => (
+              {replayMoving && [0, 1, 2, 3].map(packet => (
                 <rect className="replay-story__packet" key={packet} x="-10" y="-2" width="20" height="4" rx="1">
                   <animateMotion
                     begin={`${-packet * 0.31}s`}
@@ -169,7 +179,7 @@ export default function ReplaySection({ view, reducedMotion }: ReplaySectionProp
             <g className={`replay-story__mismatch ${hasMismatch ? 'is-detected' : ''}`}>
               <path className="replay-story__mismatch-shell" d="M 1342 684 H 1372 Q 1395 684 1395 712 V 813 H 1415" />
               <path className="replay-story__mismatch-signal" d="M 1342 684 H 1372 Q 1395 684 1395 712 V 813 H 1415" />
-              {!reducedMotion && hasMismatch && (
+              {mismatchMoving && (
                 <rect className="replay-story__packet replay-story__packet--coral" x="-9" y="-2" width="18" height="4" rx="1">
                   <animateMotion
                     dur="1.05s"
@@ -190,11 +200,11 @@ export default function ReplaySection({ view, reducedMotion }: ReplaySectionProp
 
           <div className="replay-story__agent-label replay-story__agent-label--old">
             <strong>OLD VERSION REPLAY</strong>
-            <span>06 / 06 COMPLETE <i /></span>
+            <span>{statusCount(baselineCompleted, baselineActive)} <i /></span>
           </div>
           <div className="replay-story__agent-label replay-story__agent-label--upgrade">
             <strong>UPGRADE REPLAY</strong>
-            <span>{replayStatus} <i /></span>
+            <span>{statusCount(upgradeCompleted, upgradeActive)} <i /></span>
           </div>
           <div className="replay-story__agent-label replay-story__agent-label--safety">
             <strong>SAFETY REVIEWER</strong>
@@ -208,7 +218,7 @@ export default function ReplaySection({ view, reducedMotion }: ReplaySectionProp
           <div className="replay-story__cartridges" aria-label={`${completed} of 6 replay jobs complete`}>
             {cartridgeCenters.map((left, index) => {
               const isComplete = index < completed;
-              const isActive = index === Math.min(5, completed);
+              const isActive = replayMoving && index === Math.min(5, completed);
               return (
                 <span
                   className={`${isComplete ? 'is-complete' : ''} ${isActive && completed < 6 ? 'is-active' : ''}`}
@@ -224,13 +234,13 @@ export default function ReplaySection({ view, reducedMotion }: ReplaySectionProp
 
           <div className={`replay-story__held-label ${hasMismatch ? 'is-detected' : ''}`}>
             <i />
-            <span>{String(Math.max(1, view.changesFound)).padStart(2, '0')} CHANGE HELD</span>
+            <span>{String(heldChanges).padStart(2, '0')} CHANGE{heldChanges === 1 ? '' : 'S'} HELD</span>
           </div>
         </figure>
 
         <ol className="replay-story__steps" aria-label="Release check stages">
           {['CURRENT', 'REPLAY', 'COMPARE', 'DECIDE'].map((label, index) => (
-            <li key={label} className={index === Math.max(1, view.phaseIndex) ? 'is-active' : ''}>
+            <li key={label} className={index === activeStage ? 'is-active' : ''}>
               <i aria-hidden="true" />
               <span>{label}</span>
             </li>

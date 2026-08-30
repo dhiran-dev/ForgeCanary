@@ -451,8 +451,15 @@
   .replay-story__copy h2 { max-width: 600px; font-size: clamp(38px, 11vw, 50px); }
   .replay-story__copy > p { max-width: 600px; font-size: 15px; line-height: 1.55; }
   .replay-story__live { display: none; }
-  .replay-story__machine { width: 730px; top: 390px; right: 50%; transform: translateX(50%); }
-  .replay-story__agent-label { min-width: 160px; }
+  .replay-story__machine {
+    width: min(730px, calc(100vw - 48px));
+    top: 390px;
+    right: 50%;
+    transform: translateX(50%);
+  }
+  .replay-story__agent-label { min-width: min(160px, 40vw); padding: 7px 8px 6px; }
+  .replay-story__agent-label--safety,
+  .replay-story__agent-label--reality { left: 82%; }
   .replay-story__steps { right: 20px; left: 20px; }
   .replay-story__steps li > span { font-size: 8px; }
 }
