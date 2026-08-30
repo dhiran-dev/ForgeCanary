@@ -184,15 +184,15 @@
 }
 
 .evidence-story__conduit path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
-.evidence-story__conduit-shadow { stroke: #000; stroke-width: 38; opacity: 0.92; }
-.evidence-story__conduit-metal { stroke: url("#evidence-metal"); stroke-width: 31; }
-.evidence-story__conduit-cavity { stroke: #080b0a; stroke-width: 24; }
-.evidence-story__conduit-glass { stroke: rgb(80 106 98 / 0.72); stroke-width: 17; }
-.evidence-story__conduit-specular { stroke: rgb(228 237 233 / 0.45); stroke-width: 2; transform: translateY(-4px); }
+.evidence-story__conduit-shadow { stroke: #000; stroke-width: 32; opacity: 0.92; }
+.evidence-story__conduit-metal { stroke: url("#evidence-metal"); stroke-width: 27; }
+.evidence-story__conduit-cavity { stroke: #080b0a; stroke-width: 21; }
+.evidence-story__conduit-glass { stroke: rgb(80 106 98 / 0.64); stroke-width: 13; }
+.evidence-story__conduit-specular { stroke: rgb(228 237 233 / 0.4); stroke-width: 1.5; transform: translateY(-3px); }
 .evidence-story__conduit-signal {
   stroke: #00be80;
-  stroke-width: 2.4;
-  opacity: 0.72;
+  stroke-width: 1.5;
+  opacity: 0.58;
   filter: url("#evidence-green-glow");
 }
 
@@ -206,6 +206,7 @@
   fill: #9effdb;
   opacity: 0.96;
   filter: url("#evidence-green-glow");
+  shape-rendering: crispEdges;
 }
 
 .evidence-story__packets--coral rect {

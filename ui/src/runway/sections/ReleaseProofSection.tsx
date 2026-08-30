@@ -40,10 +40,10 @@ function ProofPacket({ route, duration, begin = 0, small = false }: ProofPacketP
   return (
     <rect
       className={`proof-story-packet${small ? ' proof-story-packet--small' : ''}`}
-      x={small ? '-9' : '-13'}
-      y={small ? '-2' : '-2.5'}
-      width={small ? '18' : '26'}
-      height={small ? '4' : '5'}
+      x={small ? '-6' : '-8'}
+      y={small ? '-1.25' : '-1.5'}
+      width={small ? '12' : '16'}
+      height={small ? '2.5' : '3'}
     >
       <animateMotion
         dur={`${duration}s`}
@@ -185,21 +185,21 @@ export function ReleaseProofSection({
 
             {signalIsMoving && (
               <g className="proof-story-packets">
-                <ProofPacket route="#proof-route-current" duration={1.28} />
-                <ProofPacket route="#proof-route-upgrade" duration={1.23} begin={-0.46} />
-                <ProofPacket route="#proof-route-safety" duration={1.25} begin={-0.2} />
-                <ProofPacket route="#proof-route-reality" duration={1.18} begin={-0.72} />
-                <ProofPacket route="#proof-route-trunk-left" duration={1.58} begin={-0.36} />
-                <ProofPacket route="#proof-route-trunk-right" duration={1.58} begin={-1.15} />
-                <ProofPacket route="#proof-route-drop-1" duration={0.62} begin={-0.08} small />
-                <ProofPacket route="#proof-route-drop-2" duration={0.62} begin={-0.18} small />
-                <ProofPacket route="#proof-route-drop-3" duration={0.62} begin={-0.28} small />
-                <ProofPacket route="#proof-route-drop-4" duration={0.62} begin={-0.38} small />
-                <ProofPacket route="#proof-route-drop-5" duration={0.62} begin={-0.48} small />
-                <ProofPacket route="#proof-route-drop-6" duration={0.62} begin={-0.58} small />
-                <ProofPacket route="#proof-route-outcome" duration={1.9} begin={-0.4} />
-                <ProofPacket route="#proof-route-outcome" duration={1.9} begin={-1.04} />
-                <ProofPacket route="#proof-route-outcome" duration={1.9} begin={-1.67} />
+                <ProofPacket route="#proof-route-current" duration={0.92} />
+                <ProofPacket route="#proof-route-upgrade" duration={0.92} begin={-0.46} />
+                <ProofPacket route="#proof-route-safety" duration={0.9} begin={-0.2} />
+                <ProofPacket route="#proof-route-reality" duration={0.9} begin={-0.64} />
+                <ProofPacket route="#proof-route-trunk-left" duration={1.2} begin={-0.36} />
+                <ProofPacket route="#proof-route-trunk-right" duration={1.2} begin={-0.96} />
+                <ProofPacket route="#proof-route-drop-1" duration={0.52} begin={-0.08} small />
+                <ProofPacket route="#proof-route-drop-2" duration={0.52} begin={-0.16} small />
+                <ProofPacket route="#proof-route-drop-3" duration={0.52} begin={-0.24} small />
+                <ProofPacket route="#proof-route-drop-4" duration={0.52} begin={-0.32} small />
+                <ProofPacket route="#proof-route-drop-5" duration={0.52} begin={-0.4} small />
+                <ProofPacket route="#proof-route-drop-6" duration={0.52} begin={-0.48} small />
+                <ProofPacket route="#proof-route-outcome" duration={1.45} begin={-0.35} />
+                <ProofPacket route="#proof-route-outcome" duration={1.45} begin={-0.83} />
+                <ProofPacket route="#proof-route-outcome" duration={1.45} begin={-1.31} />
               </g>
             )}
           </svg>

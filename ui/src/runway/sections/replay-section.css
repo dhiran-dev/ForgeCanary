@@ -158,14 +158,14 @@
 
 .replay-story__conduit-shell {
   stroke: #1b211f;
-  stroke-width: 18;
+  stroke-width: 20;
   filter: drop-shadow(0 2px 2px rgb(0 0 0 / 0.84));
 }
 
 .replay-story__conduit-glass {
   stroke: #75807b;
-  stroke-width: 11;
-  opacity: 0.72;
+  stroke-width: 12;
+  opacity: 0.82;
 }
 
 .replay-story__conduit-void {
@@ -175,7 +175,7 @@
 
 .replay-story__conduit-signal {
   stroke: var(--replay-green);
-  stroke-width: 1.7;
+  stroke-width: 2.25;
   opacity: 0.78;
   filter: url(#replay-story-green-glow);
 }
@@ -185,6 +185,7 @@
 .replay-story__packet {
   fill: #74ffd0;
   filter: url(#replay-story-green-glow);
+  shape-rendering: crispEdges;
 }
 
 .replay-story__packet--coral {

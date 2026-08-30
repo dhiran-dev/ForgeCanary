@@ -129,13 +129,13 @@
   stroke-linejoin: round;
 }
 
-.control-story-tube-occlusion { stroke: #010201; stroke-width: 42; }
-.control-story-tube-shell { stroke: #171b19; stroke-width: 34; }
-.control-story-tube-edge { stroke: rgb(186 186 187 / 0.72); stroke-width: 26; }
-.control-story-tube-glass { stroke: rgb(3 11 9 / 0.96); stroke-width: 21; }
-.control-story-tube-channel { stroke: rgb(0 84 65 / 0.72); stroke-width: 12; }
-.control-story-tube-signal { stroke: #00d892; stroke-width: 3.2; }
-.control-story-tube-specular { stroke: rgb(222 222 222 / 0.38); stroke-width: 1.15; transform: translateY(-5px); }
+.control-story-tube-occlusion { stroke: #010201; stroke-width: 34; }
+.control-story-tube-shell { stroke: #171b19; stroke-width: 28; }
+.control-story-tube-edge { stroke: rgb(186 186 187 / 0.64); stroke-width: 21; }
+.control-story-tube-glass { stroke: rgb(3 11 9 / 0.96); stroke-width: 17; }
+.control-story-tube-channel { stroke: rgb(0 84 65 / 0.62); stroke-width: 8; }
+.control-story-tube-signal { stroke: #00d892; stroke-width: 2.4; }
+.control-story-tube-specular { stroke: rgb(222 222 222 / 0.34); stroke-width: 1.15; transform: translateY(-3px); }
 
 .control-story-tube--coral .control-story-tube-channel { stroke: rgb(126 29 42 / 0.7); }
 .control-story-tube--coral .control-story-tube-signal { stroke: #ff6285; }
@@ -154,12 +154,13 @@
 
 .control-story-packet {
   fill: #00d892;
-  filter: drop-shadow(0 0 5px rgb(0 216 146 / 0.9));
+  filter: drop-shadow(0 0 2px rgb(0 216 146 / 0.86));
+  shape-rendering: crispEdges;
 }
 
 .control-story-packet--coral {
   fill: #ff6285;
-  filter: drop-shadow(0 0 5px rgb(255 98 133 / 0.9));
+  filter: drop-shadow(0 0 2px rgb(255 98 133 / 0.86));
 }
 
 .control-story-static-signals { display: none; }

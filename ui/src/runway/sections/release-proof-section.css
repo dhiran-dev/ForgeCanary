@@ -195,13 +195,13 @@
   stroke-linejoin: round;
 }
 
-.proof-story-tube-occlusion { stroke: #010201; stroke-width: 40; }
-.proof-story-tube-shell { stroke: #171b19; stroke-width: 33; }
-.proof-story-tube-edge { stroke: rgb(186 186 187 / 0.68); stroke-width: 25; }
-.proof-story-tube-glass { stroke: rgb(3 11 9 / 0.96); stroke-width: 20; }
-.proof-story-tube-channel { stroke: rgb(0 84 65 / 0.72); stroke-width: 11; }
-.proof-story-tube-signal { stroke: #00d892; stroke-width: 3.1; }
-.proof-story-tube-specular { stroke: rgb(222 222 222 / 0.36); stroke-width: 1.1; transform: translateY(-4.5px); }
+.proof-story-tube-occlusion { stroke: #010201; stroke-width: 28; }
+.proof-story-tube-shell { stroke: #171b19; stroke-width: 22; }
+.proof-story-tube-edge { stroke: rgb(186 186 187 / 0.6); stroke-width: 16; }
+.proof-story-tube-glass { stroke: rgb(3 11 9 / 0.96); stroke-width: 12; }
+.proof-story-tube-channel { stroke: rgb(0 84 65 / 0.62); stroke-width: 6; }
+.proof-story-tube-signal { stroke: #00d892; stroke-width: 2; }
+.proof-story-tube-specular { stroke: rgb(222 222 222 / 0.32); stroke-width: 1; transform: translateY(-3px); }
 
 .proof-story-tube--dim { opacity: 0.38; }
 
@@ -213,7 +213,8 @@
 
 .proof-story-packet {
   fill: #00d892;
-  filter: drop-shadow(0 0 5px rgb(0 216 146 / 0.9));
+  filter: drop-shadow(0 0 2px rgb(0 216 146 / 0.86));
+  shape-rendering: crispEdges;
 }
 
 .proof-story-node {
