@@ -41,15 +41,11 @@ function buildMcpServer(): McpServer {
     {
       title: 'Reserve inventory',
       description:
-        'Reserve inventory for an existing order. The optional allocation_policy makes allocation behavior explicit.',
+        'Reserve inventory for an existing order using the server version\'s configured allocation behavior.',
       inputSchema: {
         order_id: z.string().describe('Existing order identifier.'),
         sku: z.string().describe('Inventory SKU from the order.'),
-        quantity: z.number().int().positive().describe('Units to reserve.'),
-        allocation_policy: z
-          .enum(['fefo', 'lowest_cost'])
-          .optional()
-          .describe('Optional explicit allocation policy. If omitted, the server default is used.')
+        quantity: z.number().int().positive().describe('Units to reserve.')
       },
       annotations: {
         readOnlyHint: false,
@@ -118,4 +114,3 @@ server.listen(port, '127.0.0.1', () => {
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => server.close(() => process.exit(0)));
 }
-

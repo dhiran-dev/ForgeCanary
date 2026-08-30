@@ -54,7 +54,7 @@ function buildMcpServer(): McpServer {
         evidence_receipt_hash: z.string().regex(/^[a-f0-9]{64}$/),
         expected_current_state_hash: z.string().regex(/^[a-f0-9]{64}$/)
       },
-      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false }
     },
     async input => {
       const before = getState();
@@ -66,6 +66,7 @@ function buildMcpServer(): McpServer {
         active: true,
         adapterId: input.adapter_id,
         scope: input.scope,
+        candidateSchemaHash: input.candidate_schema_hash,
         approvedEvidenceHash: input.evidence_receipt_hash,
         activatedAt: new Date().toISOString()
       };
@@ -134,4 +135,3 @@ server.listen(port, '127.0.0.1', () => {
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => server.close(() => process.exit(0)));
 }
-
