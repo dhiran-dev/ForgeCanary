@@ -25,6 +25,8 @@ import {
   configureModel,
   makeClient,
   promptForOrder,
+  approvalAgentSpec,
+  toolFreeAgentSpec,
   runInventoryJob,
   type JobTranscript
 } from './trueforge-harness.js';
@@ -224,12 +226,13 @@ export class ForgeCanaryService {
   }
 
   async retryApproval(caseId: string): Promise<ForgeCanaryCase> {
+    await this.initialize();
     const current = this.store.require(caseId);
     if (current.stage !== 'denied_verified' || current.approval.status !== 'denied' || !current.approval.sessionId) {
       throw new Error('A fresh approval can only be requested after a verified denial');
     }
     this.store.update(caseId, value => {
-      if (value.receipt) value.receiptHistory.push(value.receipt);
+      if (value.receipt) (value.receiptHistory ??= []).push(value.receipt);
       value.approval = { status: 'not_requested' };
       delete value.receipt;
     });
@@ -459,6 +462,7 @@ export class ForgeCanaryService {
     phase: 'baseline' | 'candidate' | 'repaired'
   ): Promise<JobRunEvidence> {
     const current = this.store.require(caseId);
+    if (!this.savedAgent) throw new Error('Saved replay agent is unavailable');
     const order = ORDERS.find(item => item.id === orderId);
     if (!order) throw new Error(`Unknown order ${orderId}`);
     if (!current.parentSessionId) throw new Error('Replay cannot start without a parent release run');
@@ -513,6 +517,7 @@ export class ForgeCanaryService {
       modelName: current.model,
       reasoningEffort: this.config.modelReasoningEffort,
       parentSessionId: current.parentSessionId,
+      agentSpec: this.savedAgent.manifest,
       onEvent: (event, sessionId) => this.recordTrueForgeEvent(caseId, sessionId, event)
       }
     );
@@ -553,6 +558,7 @@ export class ForgeCanaryService {
   private async runAnalysis(caseId: string): Promise<void> {
     const current = this.store.require(caseId);
     if (!current.parentSessionId) throw new Error('Analysis cannot start without a parent release run');
+    if (!this.savedAgent) throw new Error('Saved replay agent is unavailable');
     const sessionId = current.parentSessionId;
     this.store.update(caseId, value => {
       value.analysisSessionId = sessionId;
@@ -577,6 +583,9 @@ export class ForgeCanaryService {
       `EVIDENCE_JSON=${JSON.stringify(evidence)}`
     ].join('\n');
     try {
+      await this.client.sessions.update(sessionId, {
+        agent: { spec: toolFreeAgentSpec(this.savedAgent.manifest, true) }
+      });
       const stream = await this.client.sessions.createTurnStream(sessionId, {
         input: [{ type: 'user.message', content: prompt }],
         previousTurnId: 'none'
@@ -617,6 +626,7 @@ export class ForgeCanaryService {
     };
     const expectedArgumentsHash = sha256(expectedArguments);
     if (!current.parentSessionId) throw new Error('Approval cannot start without a parent release run');
+    if (!this.savedAgent) throw new Error('Saved replay agent is unavailable');
     const sessionId = current.parentSessionId;
     const prompt = [
       'Request activation of the reviewed compatibility adapter.',
@@ -630,6 +640,9 @@ export class ForgeCanaryService {
     ].join(' ');
     const calls = new Map<string, { name: string; arguments: Record<string, unknown> }>();
     const approvals: ApprovalReference[] = [];
+    await this.client.sessions.update(sessionId, {
+      agent: { spec: approvalAgentSpec(this.savedAgent.manifest) }
+    });
     const stream = await this.client.sessions.createTurnStream(sessionId, {
       input: [{ type: 'user.message', content: prompt }],
       previousTurnId: 'none'
@@ -843,7 +856,7 @@ export class ForgeCanaryService {
     if (!this.savedAgent) throw new Error('Saved replay agent is unavailable');
     const current = this.store.require(caseId);
     const { data: session } = await this.client.sessions.create({
-      agent: { name: this.savedAgent.name }
+      agent: { spec: toolFreeAgentSpec(this.savedAgent.manifest, false) }
     });
     this.store.update(caseId, value => {
       value.parentRunId = session.id;

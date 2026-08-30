@@ -1,10 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { resolve } from 'node:path';
-import { readJsonFile, writeJsonFile } from './domain.js';
-import type { CaseStage, CaseTraceEvent, ForgeCanaryCase } from './case-types.js';
+import { readJsonFile, stableJson, writeJsonFile } from './domain.js';
+import type { CaseJobRow, CaseStage, CaseTraceEvent, ForgeCanaryCase } from './case-types.js';
 
 const TERMINAL_STAGES = new Set<CaseStage>(['complete', 'denied_verified', 'failed']);
+
+const DEFAULT_RETENTION: ForgeCanaryCase['retention'] = {
+  releaseSummary: 'keep',
+  receipt: 'keep',
+  workerDetail: 'archive_after_receipt',
+  childRuns: 'hidden',
+  archivedWorkerEventCount: 0
+};
 
 const ALLOWED_TRANSITIONS: Record<CaseStage, readonly CaseStage[]> = {
   idle: ['preflight'],
@@ -41,6 +49,80 @@ export interface NewTraceEvent {
   threadId?: string | null;
 }
 
+function normalizeJob(caseId: string, job: CaseJobRow): CaseJobRow {
+  const workerStatus = job.workerStatus ?? (
+    job.repaired?.oracle.passed
+      ? 'closed'
+      : job.candidate && !job.candidate.oracle.passed
+        ? 'held'
+        : job.candidate || job.baseline
+          ? 'verified'
+          : 'queued'
+  );
+  const finalVerdict = job.finalVerdict ?? (
+    job.repaired?.oracle.passed
+      ? 'repaired'
+      : job.candidate && !job.candidate.oracle.passed
+        ? 'regression'
+        : job.candidate?.oracle.passed
+          ? 'pass'
+          : undefined
+  );
+  const currentTask = job.currentTask ?? (
+    workerStatus === 'closed'
+      ? 'Repair verified · receipt ready'
+      : workerStatus === 'held'
+        ? 'Business outcome held for review'
+        : workerStatus === 'verified'
+          ? 'Comparison verified'
+          : 'Waiting for run'
+  );
+  return {
+    ...job,
+    replayJobId: job.replayJobId ?? `${caseId}:${job.orderId}`,
+    workerStatus,
+    currentTask,
+    ...(finalVerdict ? { finalVerdict } : {})
+  };
+}
+
+export function normalizeLoadedCase(raw: ForgeCanaryCase | null): ForgeCanaryCase | null {
+  if (!raw) return null;
+  const approval = raw.approval ?? { status: 'not_requested' as const };
+  const legacyParentSessionId = raw.parentSessionId ?? raw.parentRunId ?? approval.sessionId;
+  const baselineVersion = raw.baselineVersion ?? 'MCP v1';
+  const candidateVersion = raw.candidateVersion ?? 'MCP v2';
+  const jobs = Array.isArray(raw.jobs) ? raw.jobs.map(job => normalizeJob(raw.id, job)) : [];
+  const events = Array.isArray(raw.events) ? raw.events : [];
+  const sessionIds = Array.isArray(raw.sessionIds) ? [...raw.sessionIds] : [];
+  const finalVerdict = raw.finalVerdict ?? (raw.stage === 'denied_verified' ? 'denied_zero_mutation' : undefined);
+  if (legacyParentSessionId && !sessionIds.includes(legacyParentSessionId)) sessionIds.unshift(legacyParentSessionId);
+  return {
+    ...raw,
+    version: 1,
+    savedAgentId: raw.savedAgentId ?? 'legacy-inline-agent',
+    ...(legacyParentSessionId ? { parentRunId: raw.parentRunId ?? legacyParentSessionId, parentSessionId: legacyParentSessionId } : {}),
+    baselineVersion,
+    candidateVersion,
+    historyTitle: raw.historyTitle ?? `Release check: ${baselineVersion} → ${candidateVersion}`,
+    ...(finalVerdict ? { finalVerdict } : {}),
+    sequence: Number.isFinite(raw.sequence) ? raw.sequence : events.reduce((max, event) => Math.max(max, event.id), 0),
+    jobs,
+    sessionIds,
+    approval,
+    approvalHistory: Array.isArray(raw.approvalHistory) ? raw.approvalHistory : [],
+    receiptHistory: Array.isArray(raw.receiptHistory) ? raw.receiptHistory : [],
+    releaseHistory: Array.isArray(raw.releaseHistory) ? raw.releaseHistory : [],
+    capabilities: {
+      sandboxCreated: raw.capabilities?.sandboxCreated ?? false,
+      ...(raw.capabilities?.sandboxId ? { sandboxId: raw.capabilities.sandboxId } : {}),
+      subagents: Array.isArray(raw.capabilities?.subagents) ? raw.capabilities.subagents : []
+    },
+    events,
+    retention: { ...DEFAULT_RETENTION, ...(raw.retention ?? {}) }
+  };
+}
+
 export class CaseStore {
   private readonly path: string;
   private readonly emitter = new EventEmitter();
@@ -48,7 +130,9 @@ export class CaseStore {
 
   constructor(path: string) {
     this.path = resolve(path);
-    this.current = readJsonFile<ForgeCanaryCase | null>(this.path, () => null);
+    const loaded = readJsonFile<ForgeCanaryCase | null>(this.path, () => null);
+    this.current = normalizeLoadedCase(loaded);
+    if (this.current && stableJson(loaded) !== stableJson(this.current)) writeJsonFile(this.path, this.current);
     if (this.current && !TERMINAL_STAGES.has(this.current.stage)) {
       const interruptedStage = this.current.stage;
       this.current.stage = 'failed';
@@ -111,13 +195,7 @@ export class CaseStore {
       releaseHistory,
       capabilities: { sandboxCreated: false, subagents: [] },
       events: [],
-      retention: {
-        releaseSummary: 'keep',
-        receipt: 'keep',
-        workerDetail: 'archive_after_receipt',
-        childRuns: 'hidden',
-        archivedWorkerEventCount: 0
-      }
+      retention: { ...DEFAULT_RETENTION }
     };
     this.persist();
     return this.get() as ForgeCanaryCase;

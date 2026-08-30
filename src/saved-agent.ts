@@ -1,4 +1,4 @@
-import type { TrueForge, TrueForgeApi } from '@truefoundry/trueforge-sdk';
+import { TrueForgeError, type TrueForge, type TrueForgeApi } from '@truefoundry/trueforge-sdk';
 import { resolve } from 'node:path';
 import type { ForgeCanaryConfig } from './config.js';
 import { FORGECANARY_MCP_NAMES } from './config.js';
@@ -14,15 +14,16 @@ interface SavedAgentReference {
 export interface SavedReplayAgent {
   id: string;
   name: string;
+  manifest: TrueForgeApi.AgentSpec;
 }
 
-function agentManifest(model: string, reasoningEffort: string): TrueForgeApi.AgentSpec {
+export function agentManifest(model: string, reasoningEffort: string): TrueForgeApi.AgentSpec {
   return {
     model: {
       name: model,
       params: {
         temperature: 0,
-        parallelToolCalls: true,
+        parallelToolCalls: false,
         ...(model.includes('forgecanary-deterministic') ? {} : { reasoningEffort }),
         maxTokens: 1_600
       }
@@ -66,6 +67,10 @@ function agentManifest(model: string, reasoningEffort: string): TrueForgeApi.Age
   };
 }
 
+function isNotFound(error: unknown): error is TrueForgeError {
+  return error instanceof TrueForgeError && error.statusCode === 404;
+}
+
 export async function ensureSavedReplayAgent(
   client: TrueForge,
   config: ForgeCanaryConfig,
@@ -73,22 +78,33 @@ export async function ensureSavedReplayAgent(
 ): Promise<SavedReplayAgent> {
   const refPath = resolve(config.savedAgentRefPath);
   const reference = readJsonFile<SavedAgentReference | null>(refPath, () => null);
+  const manifest = agentManifest(model, config.modelReasoningEffort);
+  let saved: TrueForgeApi.Agent | undefined;
+
   if (reference?.savedAgentId) {
-    const response = await client.agents.get(reference.savedAgentId);
-    if (response.data.name !== REPLAY_AGENT_NAME) {
-      throw new Error(`Saved agent ${reference.savedAgentId} is ${response.data.name}, expected ${REPLAY_AGENT_NAME}`);
+    try {
+      saved = (await client.agents.get(reference.savedAgentId)).data;
+    } catch (error) {
+      if (!isNotFound(error)) throw error;
     }
-    return { id: response.data.id, name: response.data.name };
   }
 
-  const agents = await client.agents.list();
-  const existing = agents.data.find(agent => agent.name === REPLAY_AGENT_NAME);
-  const saved = existing ?? (await client.agents.create({
-    name: REPLAY_AGENT_NAME,
-    manifest: agentManifest(model, config.modelReasoningEffort)
-  })).data;
+  if (saved && saved.name !== REPLAY_AGENT_NAME) {
+    throw new Error(`Saved agent ${saved.id} is ${saved.name}, expected ${REPLAY_AGENT_NAME}`);
+  }
+
+  if (!saved) {
+    const agents = await client.agents.list();
+    saved = agents.data.find(agent => agent.name === REPLAY_AGENT_NAME);
+  }
+
+  if (saved) {
+    saved = (await client.agents.update(saved.id, { manifest })).data;
+  } else {
+    saved = (await client.agents.create({ name: REPLAY_AGENT_NAME, manifest })).data;
+  }
 
   // This ForgeCanary-owned config intentionally stores no manifest or credentials.
   writeJsonFile(refPath, { savedAgentId: saved.id } satisfies SavedAgentReference);
-  return { id: saved.id, name: saved.name };
+  return { id: saved.id, name: saved.name, manifest };
 }
