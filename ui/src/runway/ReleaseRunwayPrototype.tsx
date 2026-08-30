@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useReducer,
   useRef,
   useState
 } from 'react';
@@ -9,6 +10,11 @@ import { loadCase, loadConfig, loadCurrentCase, loadHealth } from '../api';
 import type { ForgeCanaryCase, HealthState, PublicConfig } from '../types';
 import ReleaseRunwayLayeredScene from './ReleaseRunwayLayeredScene';
 import ReleaseRunwaySections from './ReleaseRunwaySections';
+import {
+  activeRunwayError,
+  initialRunwayErrorState,
+  reduceRunwayErrors
+} from './runway-errors';
 import { deriveRunwayView, isLiveCase } from './runway-state';
 import './release-runway.css';
 
@@ -32,15 +38,21 @@ export default function ReleaseRunwayPrototype() {
   const [health, setHealth] = useState<HealthState | null>(null);
   const [currentCase, setCurrentCase] = useState<ForgeCanaryCase | null>(null);
   const [initializing, setInitializing] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, dispatchError] = useReducer(reduceRunwayErrors, initialRunwayErrorState);
   const [sceneReady, setSceneReady] = useState(false);
   const refreshTimer = useRef<number | null>(null);
   const reducedMotion = useReducedMotion();
 
   const refreshCase = useCallback(async (caseId?: string) => {
-    const next = caseId ? await loadCase(caseId) : await loadCurrentCase();
-    setCurrentCase(next);
-    return next;
+    try {
+      const next = caseId ? await loadCase(caseId) : await loadCurrentCase();
+      setCurrentCase(next);
+      dispatchError({ type: 'refresh-succeeded' });
+      return next;
+    } catch (caught) {
+      dispatchError({ type: 'refresh-failed', reason: caught });
+      throw caught;
+    }
   }, []);
 
   useEffect(() => {
@@ -48,9 +60,9 @@ export default function ReleaseRunwayPrototype() {
     Promise.allSettled([loadConfig(), loadHealth(), loadCurrentCase()]).then(results => {
       const [configResult, healthResult, caseResult] = results;
       if (configResult.status === 'fulfilled') setConfig(configResult.value);
-      else setError(configResult.reason instanceof Error ? configResult.reason.message : String(configResult.reason));
       if (healthResult.status === 'fulfilled') setHealth(healthResult.value);
       if (caseResult.status === 'fulfilled') setCurrentCase(caseResult.value);
+      dispatchError({ type: 'initialization-completed', results });
       setInitializing(false);
     });
   }, []);
@@ -63,7 +75,7 @@ export default function ReleaseRunwayPrototype() {
     const scheduleRefresh = () => {
       if (refreshTimer.current !== null) window.clearTimeout(refreshTimer.current);
       refreshTimer.current = window.setTimeout(() => {
-        void refreshCase(caseId).catch(caught => setError(caught instanceof Error ? caught.message : String(caught)));
+        void refreshCase(caseId).catch(() => undefined);
       }, 100);
     };
     source.addEventListener('trace', scheduleRefresh);
@@ -76,6 +88,7 @@ export default function ReleaseRunwayPrototype() {
   }, [currentCase?.id, currentCase?.stage, refreshCase]);
 
   const view = useMemo(() => deriveRunwayView(currentCase), [currentCase]);
+  const error = activeRunwayError(errors);
   const servicesReady = Boolean(config && health?.ok);
 
   const readyScene = useCallback(() => setSceneReady(true), []);
