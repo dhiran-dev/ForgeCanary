@@ -243,6 +243,12 @@ Read the error banner and use **Open TrueForge** to inspect the failing turn. Fo
 
 ForgeCanary permits only one active release check. Wait for the current run to reach approval, completion, denial proof, or failure. Approval decisions are made in the Human Checkpoint panel rather than with the start button.
 
+## Qodo Code Review Evidence
+
+The representative review is [PR #10 — ForgeCanary Studio, reusable sessions, and landing integration](https://github.com/dhiran-dev/ForgeCanary/pull/10). Qodo identified unsafe capability leakage between replay and analysis turns, stale saved-agent configuration and recovery gaps, legacy persisted-state failures, and an incorrect inspector identity; the final commits added exact per-turn capability profiles, saved-agent reconciliation and recovery, persisted-state normalization, and canonical job IDs. Qodo then ran follow-up reviews against the updated commits before the PR was merged.
+
+[PR #11 — align release-proof conduits](https://github.com/dhiran-dev/ForgeCanary/pull/11) is a smaller example of the same workflow: geometry was centralized, regression-tested, reviewed by Qodo with no material findings, and merged only after verification.
+
 ## Verification
 
 ```bash
