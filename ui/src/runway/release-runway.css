@@ -1,3 +1,7 @@
+body:has(.runway-page) {
+  overflow-y: auto;
+}
+
 .runway-page {
   --runway-font-human: "Archivo Variable", sans-serif;
   --runway-font-system: var(--font-mono-face), monospace;

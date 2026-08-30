@@ -28,12 +28,15 @@ describe('runway story image plates', () => {
 
   it('reveals conduit scenes only after the matching hardware plate loads', () => {
     const prototype = readFileSync(join(process.cwd(), 'ui/src/runway/ReleaseRunwayPrototype.tsx'), 'utf8');
+    const runwayStyles = readFileSync(join(process.cwd(), 'ui/src/runway/release-runway.css'), 'utf8');
     const sections = [
       join(process.cwd(), 'ui/src/runway/sections/HumanControlSection.tsx'),
       join(process.cwd(), 'ui/src/runway/sections/ReleaseProofSection.tsx')
     ].map(path => readFileSync(path, 'utf8'));
 
     expect(prototype).toContain('href="#replay"');
+    expect(runwayStyles).toContain('body:has(.runway-page)');
+    expect(runwayStyles).toContain('overflow-y: auto');
 
     for (const source of sections) {
       expect(source).toContain('runway-story-visual');
