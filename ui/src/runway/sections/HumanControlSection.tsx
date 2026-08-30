@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { RunwayView } from '../runway-state';
 import { deriveHumanControlState } from './human-control-state';
 import './human-control-section.css';
@@ -61,6 +62,7 @@ function ScreenCheck() {
 }
 
 export default function HumanControlSection({ view, reducedMotion, illustrative }: HumanControlSectionProps) {
+  const [hardwareReady, setHardwareReady] = useState(false);
   const {
     mismatchKnown,
     signalIsMoving,
@@ -107,7 +109,7 @@ export default function HumanControlSection({ view, reducedMotion, illustrative 
           <span className="control-story-live-state" aria-live="polite" aria-atomic="true">{status}</span>
         </div>
 
-        <figure className="control-story-scene" aria-label="Current and upgrade outcomes held at a closed human-controlled release gate">
+        <figure className={`runway-story-visual control-story-scene${hardwareReady ? ' is-hardware-ready' : ''}`} aria-label="Current and upgrade outcomes held at a closed human-controlled release gate">
           <svg className="runway-story-conduits control-story-conduits" viewBox="0 0 1672 941" aria-hidden="true">
             <defs>
               <path id="control-route-request-current" d="M 946 139 H 886 Q 860 139 860 166 V 248" />
@@ -151,8 +153,9 @@ export default function HumanControlSection({ view, reducedMotion, illustrative 
             src="/images/runway-sections/control/hardware-plate.png"
             width="1672"
             height="941"
-            loading="lazy"
+            loading="eager"
             decoding="async"
+            onLoad={() => setHardwareReady(true)}
             alt=""
           />
 

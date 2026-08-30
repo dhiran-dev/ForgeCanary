@@ -40,7 +40,15 @@ describe('Human control story state', () => {
     expect(blocked.gateHeld).toBe(true);
     expect(blocked.status).toBe('RELEASE HELD / AWAITING OPERATOR');
     expect(blocked.gateLabel).toBe('DECISION REQUIRED');
-    expect(blocked.signalIsMoving).toBe(false);
+    expect(blocked.signalIsMoving).toBe(true);
+    expect(blocked.mismatchIsMoving).toBe(true);
+  });
+
+  it('stops explanatory flow after a failed run', () => {
+    const failed = state({ phase: 'failed', changesFound: 1, needsOperator: true });
+
+    expect(failed.signalIsMoving).toBe(false);
+    expect(failed.mismatchIsMoving).toBe(false);
   });
 
   it('removes every moving packet for reduced motion', () => {

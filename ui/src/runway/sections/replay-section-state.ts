@@ -79,12 +79,14 @@ export function deriveReplayStoryState(
     : view.phase === 'repair'
       ? Math.min(6, view.repairedJobs)
       : Math.min(6, Math.max(0, view.replayExecutions - 6));
+  const explanatoryFlowIsMoving = !reducedMotion && view.phase !== 'failed';
 
   return {
     completed: replayProgress(view, illustrative),
     hasMismatch: illustrative || view.changesFound > 0,
-    replayMoving: !reducedMotion && (illustrative || view.phase === 'replay' || view.phase === 'repair'),
-    mismatchMoving: !reducedMotion && (illustrative || (view.phase === 'compare' && view.changesFound > 0)),
+    replayMoving: explanatoryFlowIsMoving,
+    mismatchMoving: explanatoryFlowIsMoving
+      && (illustrative || ((view.phase === 'compare' || view.phase === 'blocked') && view.changesFound > 0)),
     narrative: replayNarrative(view, illustrative),
     baselineCompleted,
     upgradeCompleted,

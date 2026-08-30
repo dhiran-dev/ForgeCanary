@@ -34,7 +34,7 @@ describe('Release proof story state', () => {
     expect(ready.verifiedCells).toBe(0);
     expect(ready.receiptReady).toBe(false);
     expect(ready.gateLabel).toBe('PROOF\nPENDING');
-    expect(ready.signalIsMoving).toBe(false);
+    expect(ready.signalIsMoving).toBe(true);
   });
 
   it('shows only actually repaired outcomes during verification', () => {
@@ -57,7 +57,11 @@ describe('Release proof story state', () => {
     expect(complete.gateLabel).toBe('SAFE TO\nSHIP');
     expect(complete.safetyStatus).toBe('APPROVED');
     expect(complete.realityStatus).toBe('INVENTORY VERIFIED');
-    expect(complete.signalIsMoving).toBe(false);
+    expect(complete.signalIsMoving).toBe(true);
+  });
+
+  it('stops proof flow after a failed run', () => {
+    expect(state({ phase: 'failed' }).signalIsMoving).toBe(false);
   });
 
   it('removes proof motion when reduced motion is requested', () => {

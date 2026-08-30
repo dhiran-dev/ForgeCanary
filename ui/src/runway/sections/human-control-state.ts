@@ -21,8 +21,10 @@ export function deriveHumanControlState(
 ): HumanControlState {
   const mismatchKnown = illustrative || view.changesFound > 0;
   const gateHeld = illustrative || view.phase === 'blocked' || view.phase === 'failed' || view.needsOperator;
-  const signalIsMoving = !reducedMotion && (illustrative || view.phase === 'compare' || view.phase === 'repair');
-  const mismatchIsMoving = signalIsMoving && mismatchKnown && (illustrative || view.phase === 'compare');
+  const signalIsMoving = !reducedMotion && view.phase !== 'failed';
+  const mismatchIsMoving = signalIsMoving
+    && mismatchKnown
+    && (illustrative || view.phase === 'compare' || view.phase === 'blocked');
 
   const status = illustrative
     ? 'DEMO HOLD / NO CHANGE IN PRODUCTION'

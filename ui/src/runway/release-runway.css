@@ -97,29 +97,6 @@
 
 .runway-connection small { display: none; }
 
-.runway-nav-rule {
-  width: 1px;
-  height: 26px;
-  background: var(--runway-line);
-}
-
-.runway-menu {
-  width: 24px;
-  height: 18px;
-  display: grid;
-  align-content: space-between;
-  padding: 1px 0;
-}
-
-.runway-menu i {
-  height: 1px;
-  display: block;
-  background: var(--runway-steel);
-  transition: width 180ms ease, background-color 180ms ease;
-}
-
-.runway-menu i:nth-child(2) { width: 72%; justify-self: end; }
-
 .runway-hero {
   height: calc(100svh - 64px);
   min-height: 680px;
@@ -195,124 +172,6 @@
   border-bottom: 1px solid var(--runway-green);
   transform: translateY(-2px) rotate(45deg);
   animation: runway-arrow-drop 1.15s ease-in-out infinite;
-}
-
-.runway-live-row {
-  width: min(650px, 68vw);
-  min-height: 54px;
-  display: grid;
-  grid-template-columns: 28px 184px 1px minmax(180px, auto);
-  align-items: center;
-  gap: 15px;
-  margin-top: 25px;
-  padding-top: 13px;
-  border-top: 1px solid var(--runway-line);
-  animation: runway-copy-in 780ms 260ms var(--ease-out) both;
-}
-
-.runway-play {
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--runway-green);
-}
-
-.runway-play i {
-  width: 0;
-  height: 0;
-  margin-left: 2px;
-  border-top: 4px solid transparent;
-  border-bottom: 4px solid transparent;
-  border-left: 7px solid var(--runway-green);
-}
-
-.runway-live-status {
-  min-width: 0;
-  display: grid;
-  gap: 9px;
-}
-
-.runway-live-status > strong {
-  overflow: hidden;
-  color: var(--runway-silver);
-  font-family: var(--font-mono-face), monospace;
-  font-size: 9px;
-  font-weight: 400;
-  letter-spacing: 0.035em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.runway-live-divider {
-  width: 1px;
-  height: 42px;
-  background: var(--runway-line-bright);
-}
-
-.runway-live-summary {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.runway-live-summary code {
-  display: grid;
-  gap: 4px;
-  font-family: var(--font-mono-face), monospace;
-  font-size: 8px;
-  font-style: normal;
-  letter-spacing: 0.1em;
-  line-height: 1.2;
-}
-
-.runway-live-summary strong,
-.runway-live-summary b { font-weight: 400; }
-.runway-live-summary strong { color: var(--runway-silver); }
-.runway-live-summary b { color: var(--runway-green); }
-
-.runway-target {
-  width: 24px;
-  height: 24px;
-  position: relative;
-  display: block;
-  flex: 0 0 auto;
-  border: 1px solid rgb(0 223 153 / 0.68);
-  border-radius: 50%;
-}
-
-.runway-target::before,
-.runway-target::after {
-  position: absolute;
-  content: "";
-  background: var(--runway-green);
-}
-
-.runway-target::before { width: 32px; height: 1px; top: 11px; left: -5px; }
-.runway-target::after { width: 1px; height: 32px; top: -5px; left: 11px; }
-.runway-target i { position: absolute; inset: 6px; border: 1px solid var(--runway-green); border-radius: 50%; }
-
-.runway-meter {
-  height: 3px;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 3px;
-}
-
-.runway-meter i {
-  background: var(--runway-line-bright);
-  transition: background-color 220ms ease, box-shadow 220ms ease;
-}
-
-.runway-meter i.active {
-  background: var(--runway-green);
-  box-shadow: 0 0 8px rgb(0 223 153 / 0.42);
-}
-
-.runway-phase-blocked .runway-meter i:last-child,
-.runway-phase-failed .runway-meter i:last-child {
-  background: var(--runway-coral);
-  box-shadow: 0 0 8px rgb(255 101 79 / 0.42);
 }
 
 .runway-stage {
@@ -398,35 +257,6 @@
 
 .runway-stage.scene-ready .runway-model-poster { opacity: 0; }
 
-.runway-stage-caption {
-  position: absolute;
-  z-index: 5;
-  right: clamp(28px, 2.5vw, 44px);
-  bottom: -46px;
-  display: grid;
-  justify-items: end;
-  pointer-events: none;
-  font-family: var(--font-mono-face), monospace;
-  letter-spacing: 0.12em;
-}
-
-.runway-stage-caption > strong {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border: 1px solid var(--runway-line-bright);
-  background: rgb(2 4 3 / 0.74);
-  color: var(--runway-silver);
-  font-size: 8px;
-  font-weight: 400;
-}
-
-.runway-stage-caption em { color: var(--runway-line-bright); font-style: normal; }
-.runway-stage-caption b { color: var(--runway-green); font-weight: 400; }
-.runway-phase-blocked .runway-stage-caption b,
-.runway-phase-failed .runway-stage-caption b { color: var(--runway-coral); }
-
 .runway-steps {
   height: 70px;
   position: absolute;
@@ -503,7 +333,6 @@
 .runway-steps li.safe > strong { color: var(--runway-green); }
 
 @media (hover: hover) and (pointer: fine) {
-  .runway-menu:hover i { width: 100%; background: var(--runway-bone); }
   .runway-scroll-cue:hover { color: var(--runway-green); }
 }
 
@@ -535,9 +364,6 @@
 @media (max-width: 1120px) {
   .runway-copy { width: min(540px, 54vw); }
   .runway-copy h1 { font-size: clamp(42px, 5vw, 54px); }
-  .runway-live-row { width: 62vw; grid-template-columns: 28px minmax(150px, 1fr); }
-  .runway-live-divider,
-  .runway-live-summary { display: none; }
   .runway-stage { top: 37%; }
 }
 
@@ -550,28 +376,22 @@
   .runway-copy h1 { max-width: 620px; font-size: clamp(40px, 9.8vw, 54px); }
   .runway-title-break { display: none; }
   .runway-copy > p { font-size: 14px; }
-  .runway-live-row { width: 100%; grid-template-columns: 28px 1fr 92px; }
   .runway-stage { inset: 48% -12% 74px; }
   .runway-model-poster { background-size: cover; }
-  .runway-stage-caption { right: 24%; }
   .runway-steps { height: 74px; bottom: 0; grid-template-columns: repeat(4, 1fr); padding-inline: 0; }
 }
 
 @media (max-width: 560px) {
   .runway-brand { font-size: 17px; }
   .runway-nav-actions { gap: 13px; }
-  .runway-nav-rule { height: 22px; }
   .runway-connection span { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .runway-copy h1 { font-size: 38px; line-height: 0.98; }
   .runway-copy > p { max-width: 345px; }
-  .runway-live-row { grid-template-columns: 28px 1fr; margin-top: 18px; }
-  .runway-meter { grid-column: 2; width: 100%; }
   .runway-stage { inset: 57% -8% 74px; }
   .runway-layered-scene,
   .runway-model-poster { transform: translateY(10px) scale(1.06); }
   .runway-layered-canvas { width: 100%; left: 50%; transform: translate(-50%, -50%); }
   .runway-model-poster { background-size: contain; }
-  .runway-stage-caption { display: none; }
   .runway-steps li > strong { font-size: 8px; }
 }
 
@@ -581,7 +401,6 @@
   .runway-copy h1,
   .runway-copy > p,
   .runway-scroll-cue,
-  .runway-live-row,
   .runway-stage {
     animation: runway-reduced-in 180ms var(--ease-out) both;
   }

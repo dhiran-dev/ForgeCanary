@@ -116,6 +116,15 @@
   user-select: none;
 }
 
+.runway-story-visual {
+  opacity: 0;
+}
+
+.runway-story-visual.is-hardware-ready {
+  opacity: 1;
+  transition: opacity 160ms var(--story-ease-out);
+}
+
 .runway-story-conduits {
   width: 100%;
   height: 100%;
@@ -151,6 +160,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .runway-story-visual.is-hardware-ready {
+    transition: none;
+  }
+
   .runway-story-packet {
     display: none;
   }

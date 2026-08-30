@@ -30,7 +30,7 @@ describe('Replay story state', () => {
     expect(demo.replayMoving).toBe(true);
   });
 
-  it('shows zero progress and no motion before replay starts', () => {
+  it('shows zero progress while keeping the explanatory flow visible before replay starts', () => {
     const ready = state();
 
     expect(ready.narrative.label).toBe('LIVE / READY');
@@ -38,7 +38,7 @@ describe('Replay story state', () => {
     expect(statusCount(ready.upgradeCompleted, ready.upgradeActive)).toBe('00 / 06 WAITING');
     expect(ready.hasMismatch).toBe(false);
     expect(ready.heldChanges).toBe(0);
-    expect(ready.replayMoving).toBe(false);
+    expect(ready.replayMoving).toBe(true);
     expect(ready.activeStage).toBe(0);
   });
 
@@ -66,7 +66,7 @@ describe('Replay story state', () => {
     expect(changedCompare.mismatchMoving).toBe(true);
   });
 
-  it('stops all packets in terminal and reduced-motion states', () => {
+  it('keeps the main flow visible after completion but stops failures and reduced motion', () => {
     const complete = state({
       phase: 'complete',
       phaseIndex: 3,
@@ -75,10 +75,13 @@ describe('Replay story state', () => {
       repairedJobs: 6,
       changesFound: 1
     });
+    const failed = state({ phase: 'failed', phaseIndex: 3, changesFound: 1 });
     const reduced = state({ phase: 'replay', phaseIndex: 1 }, false, true);
 
-    expect(complete.replayMoving).toBe(false);
+    expect(complete.replayMoving).toBe(true);
     expect(complete.mismatchMoving).toBe(false);
+    expect(failed.replayMoving).toBe(false);
+    expect(failed.mismatchMoving).toBe(false);
     expect(reduced.replayMoving).toBe(false);
     expect(reduced.mismatchMoving).toBe(false);
   });

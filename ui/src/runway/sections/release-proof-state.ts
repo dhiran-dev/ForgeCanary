@@ -41,7 +41,7 @@ export function deriveReleaseProofState(
       : view.phase === 'repair'
         ? 'verifying'
         : 'pending';
-  const signalIsMoving = !reducedMotion && (illustrative || view.phase === 'repair');
+  const signalIsMoving = !reducedMotion && view.phase !== 'failed';
 
   const receiptHeader = illustrative
     ? 'DEMO / PROOF RECEIPT READY'
