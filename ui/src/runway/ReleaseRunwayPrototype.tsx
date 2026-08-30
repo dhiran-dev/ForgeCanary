@@ -166,6 +166,8 @@ export default function ReleaseRunwayPrototype() {
         view={view}
         reducedMotion={reducedMotion}
         illustrative={!currentCase}
+        receiptUrl={currentCase?.receipt ? `/api/cases/${encodeURIComponent(currentCase.id)}/receipt` : undefined}
+        trueforgeUrl={config?.trueforgeUiUrl}
       />
     </div>
   );
