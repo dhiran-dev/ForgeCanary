@@ -144,6 +144,7 @@ export function ReleaseProofSection({
           </div>
 
           <div className="proof-story-actions">
+            <ProofAction href="/" label="OPEN FORGECANARY STUDIO" variant="primary" />
             <ProofAction href={trueforgeUrl} label="VIEW TRUEFORGE RUN" variant="secondary" external />
           </div>
         </div>
